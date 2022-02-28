@@ -1,0 +1,19 @@
+<toplevel>
+  <pslice>
+    <bool>true</bool>
+    <float>123.4567</float>
+  </pslice>
+
+  <sslice>
+    <string>foo</string>
+    <int>123</int>
+  </sslice>
+
+  <struct>
+    <bool>false</bool>
+  </struct>
+
+  <pstruct>
+    <string>foo2</string>
+  </pstruct>
+</toplevel>

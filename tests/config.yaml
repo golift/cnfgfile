@@ -1,0 +1,13 @@
+pslice:
+- bool: true
+  float: 123.4567
+
+sslice:
+- string: "foo"
+  int: 123
+
+struct:
+  bool: false
+
+pstruct:
+  string: "foo2"
