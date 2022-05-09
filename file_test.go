@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"golift.io/cnfg"
-	"golift.io/cnfg/cnfgfile"
+	"golift.io/cnfgfile"
 )
 
 type testStruct struct {
