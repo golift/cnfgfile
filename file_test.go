@@ -2,7 +2,7 @@ package cnfgfile_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -147,7 +147,7 @@ func ExampleUnmarshal() {
 	yaml := []byte("---\ninterval: 5m\nlocation: Earth\nprovided: true")
 	path := "/tmp/path_to_config.yaml"
 
-	err := ioutil.WriteFile(path, yaml, 0o600)
+	err := os.WriteFile(path, yaml, 0o600)
 	if err != nil {
 		panic(err)
 	}
