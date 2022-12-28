@@ -1,0 +1,31 @@
+issues:
+  exclude-rules:
+    - linters:
+        - funlen
+        - staticcheck
+        - goerr113
+        - testpackage
+      path: '(.+)_test\.go'
+
+linters:
+  enable-all: true
+  disable:
+    - maligned
+    - scopelint
+    - interfacer
+    - golint
+    - exhaustivestruct
+    - exhaustruct
+    - nlreturn
+    - varcheck
+    - nosnakecase
+    - structcheck
+    - deadcode
+    - ifshort
+    - rowserrcheck
+    - sqlclosecheck
+    - wastedassign
+    - exhaustive
+
+run:
+  timeout: 3m
