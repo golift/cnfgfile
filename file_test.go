@@ -2,7 +2,7 @@ package cnfgfile_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -144,13 +144,17 @@ func ExampleUnmarshal() {
 
 	// Create a test file with some test data to unmarshal.
 	// YAML is just an example, you can use any supported format.
-	yaml := []byte("---\ninterval: 5m\nlocation: Earth\nprovided: true")
-	path := "/tmp/path_to_config.yaml"
-
-	err := ioutil.WriteFile(path, yaml, 0o600)
+	path, err := os.CreateTemp("", "test_config_file.yaml")
 	if err != nil {
 		panic(err)
 	}
+
+	yaml := "---\ninterval: 5m\nlocation: Earth\nprovided: true\n"
+	if _, err = fmt.Fprint(path, yaml); err != nil {
+		panic(err)
+	}
+
+	path.Close()
 
 	// Start with an empty config. Or set some defaults beforehand.
 	config := &Config{}
@@ -158,7 +162,7 @@ func ExampleUnmarshal() {
 	// Simply pass in your config file. If it contains ".yaml" it will be parsed as YAML.
 	// Same for ".xml" and ".json". If the file has none of these extensions it is parsed
 	// as TOML. Meaning if you name your config "config.conf" it needs ot be TOML formatted.
-	err = cnfgfile.Unmarshal(config, path)
+	err = cnfgfile.Unmarshal(config, path.Name())
 	if err != nil {
 		panic(err)
 	}

@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	toml "github.com/BurntSushi/toml"
@@ -29,7 +29,7 @@ func Unmarshal(config interface{}, configFile ...string) error {
 	}
 
 	for _, fileName := range configFile {
-		buf, err := ioutil.ReadFile(fileName)
+		buf, err := os.ReadFile(fileName)
 
 		switch {
 		case err != nil:
