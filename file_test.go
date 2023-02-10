@@ -98,6 +98,15 @@ func TestUnmarshalJSON(t *testing.T) {
 	testUnmarshalValues(a, c, err, "TestUnmarshalJSON")
 }
 
+func TestUnmarshalGzJSON(t *testing.T) {
+	t.Parallel()
+
+	a := assert.New(t)
+	c := &testStruct{}
+	err := cnfgfile.Unmarshal(c, "tests/config.json.gz")
+	testUnmarshalValues(a, c, err, "TestUnmarshalJSON")
+}
+
 func TestUnmarshalXML(t *testing.T) {
 	t.Parallel()
 
@@ -115,6 +124,16 @@ func TestUnmarshalYAML(t *testing.T) {
 	c := &testStruct{}
 
 	err := cnfgfile.Unmarshal(c, "tests/config.yaml")
+	testUnmarshalValues(a, c, err, "TestUnmarshalYAML")
+}
+
+func TestUnmarshalBz2YAML(t *testing.T) {
+	t.Parallel()
+
+	a := assert.New(t)
+	c := &testStruct{}
+
+	err := cnfgfile.Unmarshal(c, "tests/config.yaml.bz2")
 	testUnmarshalValues(a, c, err, "TestUnmarshalYAML")
 }
 

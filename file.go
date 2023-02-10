@@ -6,9 +6,13 @@
 package cnfgfile
 
 import (
+	"compress/bzip2"
+	"compress/gzip"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"strings"
 
@@ -23,31 +27,63 @@ var ErrNoFile = fmt.Errorf("must provide at least 1 file to unmarshal")
 // or toml packages. If the file name contains an appropriate suffix it is
 // unmarshaled with the corresponding package. If the suffix is missing, TOML
 // is assumed. Works with multiple files, so you can have stacked configurations.
+// Will detect (and decompress) a file that is gzip or bzip2 compressed.
 func Unmarshal(config interface{}, configFile ...string) error {
 	if len(configFile) == 0 {
 		return ErrNoFile
 	}
 
 	for _, fileName := range configFile {
-		buf, err := os.ReadFile(fileName)
+		fileOpen, err := os.Open(fileName)
+		if err != nil {
+			return fmt.Errorf("opening file %s: %w", fileName, err)
+		}
+		defer fileOpen.Close()
 
-		switch {
+		fileReader, err := deCompress(fileOpen)
+
+		switch lowerName := strings.ToLower(fileName); {
 		case err != nil:
-			return fmt.Errorf("reading file %s: %w", configFile, err)
-		case strings.Contains(fileName, ".json"):
-			err = json.Unmarshal(buf, config)
-		case strings.Contains(fileName, ".xml"):
-			err = xml.Unmarshal(buf, config)
-		case strings.Contains(fileName, ".yaml"):
-			err = yaml.Unmarshal(buf, config)
+			return err
+		case strings.Contains(lowerName, ".json"):
+			err = json.NewDecoder(fileReader).Decode(config)
+		case strings.Contains(lowerName, ".xml"):
+			err = xml.NewDecoder(fileReader).Decode(config)
+		case strings.Contains(lowerName, ".yaml"):
+			err = yaml.NewDecoder(fileReader).Decode(config)
 		default:
-			err = toml.Unmarshal(buf, config)
+			_, err = toml.NewDecoder(fileReader).Decode(config)
 		}
 
 		if err != nil {
-			return fmt.Errorf("unmarshaling file %s: %w", configFile, err)
+			return fmt.Errorf("unmarshaling file %s: %w", fileName, err)
 		}
 	}
 
 	return nil
+}
+
+func deCompress(fileReader *os.File) (io.Reader, error) {
+	buff := make([]byte, 512)
+	if _, err := fileReader.Read(buff); err != nil {
+		return nil, fmt.Errorf("reading file %s: %w", fileReader.Name(), err)
+	}
+
+	if _, err := fileReader.Seek(0, io.SeekStart); err != nil {
+		return nil, fmt.Errorf("seeking file start %s: %w", fileReader.Name(), err)
+	}
+
+	switch {
+	case http.DetectContentType(buff) == "application/x-gzip":
+		gz, err := gzip.NewReader(fileReader)
+		if err != nil {
+			return nil, fmt.Errorf("file detected as gz, decompress failed: %w", err)
+		}
+
+		return gz, nil
+	case strings.HasPrefix(string(buff), "\x42\x5a\x68"):
+		return bzip2.NewReader(fileReader), nil
+	default:
+		return fileReader, nil
+	}
 }
