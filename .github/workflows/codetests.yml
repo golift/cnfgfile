@@ -36,7 +36,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.52
+          version: 'v1.52'
   # Runs golangci-lint on linux against linux and windows.
   golangci-linux:
     strategy:
@@ -54,4 +54,4 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.50
+          version: 'v1.52'
