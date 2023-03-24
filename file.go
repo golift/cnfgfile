@@ -64,7 +64,7 @@ func Unmarshal(config interface{}, configFile ...string) error {
 }
 
 func deCompress(fileReader *os.File) (io.Reader, error) {
-	buff := make([]byte, 512)
+	buff := make([]byte, 512) //nolint:gomnd
 	if _, err := fileReader.Read(buff); err != nil {
 		return nil, fmt.Errorf("reading file %s: %w", fileReader.Name(), err)
 	}
