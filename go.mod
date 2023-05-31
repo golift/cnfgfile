@@ -3,7 +3,7 @@ module golift.io/cnfgfile
 go 1.17
 
 require (
-	github.com/BurntSushi/toml v1.2.1
+	github.com/BurntSushi/toml v1.3.0
 	github.com/stretchr/testify v1.8.2
 	golift.io/cnfg v0.2.1
 	gopkg.in/yaml.v3 v3.0.1
