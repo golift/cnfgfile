@@ -49,7 +49,7 @@ func Unmarshal(config interface{}, configFile ...string) error {
 			err = json.NewDecoder(fileReader).Decode(config)
 		case strings.Contains(lowerName, ".xml"):
 			err = xml.NewDecoder(fileReader).Decode(config)
-		case strings.Contains(lowerName, ".yaml"):
+		case strings.Contains(lowerName, ".yaml"), strings.Contains(lowerName, ".yml"):
 			err = yaml.NewDecoder(fileReader).Decode(config)
 		default:
 			_, err = toml.NewDecoder(fileReader).Decode(config)
