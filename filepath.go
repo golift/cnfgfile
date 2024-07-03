@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// Opts contains the optional input parameters for ReadConfigs() to control how a data structure is processed.
+// Opts contains the optional input parameters for Parse() to control how a data structure is processed.
 type Opts struct {
 	// Prefix is the string we check for to see if we should read in a config file.
 	// If left blank the default of filepath: will be used.
@@ -22,30 +22,46 @@ type Opts struct {
 	NoTrim bool
 	// Name is prefixed to element names when an error is returned.
 	// The default name is "Config" if this is omitted.
-	Name string
+	Name   string
+	output map[string]string
 }
 
-// Changes Defaults.
+// Parse(Opts) Defaults.
 const (
 	DefaultPrefix  = "filepath:"
 	DefaultMaxSize = uint(1024)
 	DefaultName    = "Config"
 )
 
-// ReadConfigs parses a data structure and searches for strings. It is fully recursive, and will find strings
+// Parse parses a data structure and searches for strings. It is fully recursive, and will find strings
 // in slices, embedded structs, maps and pointers. If the found string has a defined prefix (filepath: by default),
 // then the provided filepath is opened, read, and the contents are saved into the string. Replacing the filepath
 // that it once was. This allows you to define a Config struct, and your users can store secrets (or other strings)
 // in separate files. After you read in the base config data, pass a pointer to your config struct to this function,
 // and it will automatically go to work filling in any extra external config data. Opts may be nil, uses defaults.
-func ReadConfigs(input interface{}, opts *Opts) error {
+// The output map is a map of Config.Item => filepath. Use this to see what files were read-in for each config path.
+// If there is an element failure, the failed element and all prior parsed elements will be present in the map.
+func Parse(input interface{}, opts *Opts) (map[string]string, error) {
 	data := reflect.TypeOf(input)
 	if data.Kind() != reflect.Ptr || data.Elem().Kind() != reflect.Struct {
-		return ErrNotPtr
+		return nil, ErrNotPtr
 	}
 
 	if opts == nil {
-		opts = &Opts{}
+		opts = &Opts{
+			Prefix:  DefaultPrefix,
+			MaxSize: DefaultMaxSize,
+			Name:    DefaultName,
+			output:  make(map[string]string),
+		}
+	} else {
+		opts = &Opts{ // make a copy for thread safety
+			Prefix:  opts.Prefix,
+			MaxSize: opts.MaxSize,
+			NoTrim:  opts.NoTrim,
+			Name:    opts.Name,
+			output:  make(map[string]string),
+		}
 	}
 
 	if opts.MaxSize == 0 {
@@ -60,7 +76,7 @@ func ReadConfigs(input interface{}, opts *Opts) error {
 		opts.Name = DefaultName
 	}
 
-	return opts.parseStruct(reflect.ValueOf(input).Elem(), opts.Name)
+	return opts.output, opts.parseStruct(reflect.ValueOf(input).Elem(), opts.Name)
 }
 
 func (o *Opts) parseStruct(field reflect.Value, name string) error {
@@ -129,7 +145,10 @@ func (o *Opts) parseString(field reflect.Value, name string) error {
 		return nil
 	}
 
-	data, err := readFile(strings.TrimPrefix(value, o.Prefix), o.MaxSize)
+	// Save this parsed file to the output map.
+	o.output[name] = strings.TrimPrefix(value, o.Prefix)
+
+	data, err := readFile(o.output[name], o.MaxSize)
 	if err != nil {
 		return fmt.Errorf("element failure: %s: %w", name, err)
 	}
