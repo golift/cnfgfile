@@ -1,8 +1,12 @@
-// Package cnfgfile provides a shorthand procedure to unmarshal any config file(s).
+// Package cnfgfile provides two distinct features.
+// 1. A shorthand procedure to unmarshal any config file(s).
 // You can put your configuration into any file format: XML, YAML, JSON, TOML.
 // You can pass in more than one config file to unmarshal a hierarchy of configs.
-// Works well with parent cnfg package. Call this package or cnfg in either order.
-// The former overrides the latter.
+// 2. Provides a way to read in config settings from their own files. This is most
+// useful for keeping secrets in their own files. You can pass a struct into
+// ReadConfigs and it will check every string for a filepath: prefix. When it finds
+// a string with that prefix, it reads in the filepath that follows, and re-sets the
+// string to the value found in the file.
 package cnfgfile
 
 import (
@@ -10,17 +14,42 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	toml "github.com/BurntSushi/toml"
 	yaml "gopkg.in/yaml.v3"
 )
 
-var ErrNoFile = fmt.Errorf("must provide at least 1 file to unmarshal")
+// Errors this library may produce.
+var (
+	ErrNoFile = errors.New("must provide at least 1 file to unmarshal")
+	ErrNotPtr = errors.New("must provide a pointer to a struct")
+)
+
+// Duration allows unmarshalling time durations from a config file.
+type Duration struct {
+	time.Duration
+}
+
+// UnmarshalText parses a duration type from a config file. This method works
+// with the Duration type to allow unmarshaling of durations from files and
+// env variables in the same struct. You won't generally call this directly.
+func (d *Duration) UnmarshalText(b []byte) error {
+	dur, err := time.ParseDuration(string(b))
+	if err != nil {
+		return fmt.Errorf("parsing duration '%s': %w", b, err)
+	}
+
+	d.Duration = dur
+
+	return nil
+}
 
 // Unmarshal parses a configuration file (of any format) into a config struct.
 // This is a shorthand method for calling Unmarshal against the json, xml, yaml
@@ -64,7 +93,7 @@ func Unmarshal(config interface{}, configFile ...string) error {
 }
 
 func deCompress(fileReader *os.File) (io.Reader, error) {
-	buff := make([]byte, 512) //nolint:gomnd
+	buff := make([]byte, 512) //nolint:mnd
 	if _, err := fileReader.Read(buff); err != nil {
 		return nil, fmt.Errorf("reading file %s: %w", fileReader.Name(), err)
 	}

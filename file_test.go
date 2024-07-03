@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"golift.io/cnfg"
 	"golift.io/cnfgfile"
 )
 
@@ -156,9 +155,9 @@ func TestUnmarshalTOML(t *testing.T) {
 func ExampleUnmarshal() {
 	// Recommend adding tags for each type to your struct members. Provide full compatibility.
 	type Config struct {
-		Interval cnfg.Duration `json:"interval" xml:"interval" toml:"interval" yaml:"interval"`
-		Location string        `json:"location" xml:"location" toml:"location" yaml:"location"`
-		Provided bool          `json:"provided" xml:"provided" toml:"provided" yaml:"provided"`
+		Interval cnfgfile.Duration `json:"interval" xml:"interval" toml:"interval" yaml:"interval"`
+		Location string            `json:"location" xml:"location" toml:"location" yaml:"location"`
+		Provided bool              `json:"provided" xml:"provided" toml:"provided" yaml:"provided"`
 	}
 
 	// Create a test file with some test data to unmarshal.
@@ -187,5 +186,5 @@ func ExampleUnmarshal() {
 	}
 
 	fmt.Printf("interval: %v, location: %v, provided: %v", config.Interval, config.Location, config.Provided)
-	// Output: interval: 5m, location: Earth, provided: true
+	// Output: interval: 5m0s, location: Earth, provided: true
 }
