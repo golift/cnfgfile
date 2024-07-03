@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golift.io/cnfgfile"
 )
 
@@ -28,43 +29,46 @@ type testSubConfig struct {
 	FloatP  *float64 `json:"float" xml:"float" yaml:"float" toml:"float"`
 }
 
-func testUnmarshalValues(assert *assert.Assertions, config *testStruct, err error, from string) {
+func testUnmarshalValues(t *testing.T, assert *assert.Assertions, config *testStruct, err error, from string) {
+	t.Helper()
+
 	from += " "
 
-	assert.Nil(err, "there should not be an error reading the test file")
+	require.NoError(t, err, "there should not be an error reading the test file")
 	// PointerSlice
-	assert.Equal(1, len(config.PointerSlice), from+"pointerslice is too short")
-	assert.EqualValues(true, config.PointerSlice[0].Bool, from+"the boolean was true")
+	assert.Len(config.PointerSlice, 1, from+"pointerslice is too short")
+	assert.True(config.PointerSlice[0].Bool, from+"the boolean was true")
+	//nolint:testifylint
 	assert.EqualValues(123.4567, *config.PointerSlice[0].FloatP, from+"the float64 was set to 123.4567")
 	assert.EqualValues(0, config.PointerSlice[0].Int, from+"int was not set so should be zero")
 	assert.Nil(config.PointerSlice[0].StringP, from+"the string pointer was not set so should remain nil")
 
 	// StructSlice
-	assert.Equal(1, len(config.StructSlice), from+"pointerslice is too short")
-	assert.EqualValues(false, config.StructSlice[0].Bool, from+"the boolean was missing and should be false")
+	assert.Len(config.StructSlice, 1, from+"pointerslice is too short")
+	assert.False(config.StructSlice[0].Bool, from+"the boolean was missing and should be false")
 	assert.Nil(config.StructSlice[0].FloatP, from+"the float64 was missing and should be nil")
 	assert.EqualValues(123, config.StructSlice[0].Int, from+"int was set to 123")
 	assert.EqualValues("foo", *config.StructSlice[0].StringP, from+"the string was set to foo")
 
 	// Struct
-	assert.EqualValues(false, config.Struct.Bool, from+"the boolean was false and should be false")
+	assert.False(config.Struct.Bool, from+"the boolean was false and should be false")
 	assert.Nil(config.Struct.FloatP, from+"the float64 was missing and should be nil")
 	assert.EqualValues(0, config.Struct.Int, from+"int was not set and must be 0")
 	assert.Nil(config.Struct.StringP, from+"the string was missing and should be nil")
 
 	// PointerStruct
 	assert.NotNil(config.PointerStruct, from+"the pointer struct has values and must not be nil")
-	assert.EqualValues(false, config.PointerStruct.Bool, from+"the boolean was missing and should be false")
+	assert.False(config.PointerStruct.Bool, from+"the boolean was missing and should be false")
 	assert.Nil(config.PointerStruct.FloatP, from+"the float64 was missing and should be nil")
 	assert.EqualValues(0, config.PointerStruct.Int, from+"int was not set and must be 0")
 	assert.EqualValues("foo2", *config.PointerStruct.StringP, from+"the string was set to foo2")
 
 	// PointerSlice2
-	assert.Equal(0, len(config.PointerSlice2), from+"pointerslice2 is too long")
+	assert.Empty(config.PointerSlice2, from+"pointerslice2 is too long")
 	// StructSlice2
-	assert.Equal(0, len(config.StructSlice2), from+"structslice2 is too long")
+	assert.Empty(config.StructSlice2, from+"structslice2 is too long")
 	// Struct2
-	assert.EqualValues(false, config.Struct2.Bool, from+"this must be zero value")
+	assert.False(config.Struct2.Bool, from+"this must be zero value")
 	assert.Nil(config.Struct2.FloatP, from+"this must be zero value")
 	assert.EqualValues(0, config.Struct2.Int, from+"this must be zero value")
 	assert.Nil(config.Struct2.StringP, from+"this must be zero value")
@@ -75,17 +79,16 @@ func testUnmarshalValues(assert *assert.Assertions, config *testStruct, err erro
 func TestUnmarshalErrors(t *testing.T) {
 	t.Parallel()
 
-	assert := assert.New(t)
 	config := &testStruct{}
 
 	err := cnfgfile.Unmarshal(config, "/etc/passwd")
-	assert.NotNil(err, "there should be an error parsing a password file")
+	require.Error(t, err, "there should be an error parsing a password file")
 
 	err = cnfgfile.Unmarshal(config, "no file here")
-	assert.NotNil(err, "there should be an error parsing a missing file")
+	require.Error(t, err, "there should be an error parsing a missing file")
 
 	err = cnfgfile.Unmarshal(config)
-	assert.NotNil(err, "there should be an error parsing a nil file")
+	require.Error(t, err, "there should be an error parsing a nil file")
 }
 
 func TestUnmarshalJSON(t *testing.T) {
@@ -94,7 +97,7 @@ func TestUnmarshalJSON(t *testing.T) {
 	a := assert.New(t)
 	c := &testStruct{}
 	err := cnfgfile.Unmarshal(c, "tests/config.json")
-	testUnmarshalValues(a, c, err, "TestUnmarshalJSON")
+	testUnmarshalValues(t, a, c, err, "TestUnmarshalJSON")
 }
 
 func TestUnmarshalGzJSON(t *testing.T) {
@@ -103,7 +106,7 @@ func TestUnmarshalGzJSON(t *testing.T) {
 	a := assert.New(t)
 	c := &testStruct{}
 	err := cnfgfile.Unmarshal(c, "tests/config.json.gz")
-	testUnmarshalValues(a, c, err, "TestUnmarshalJSON")
+	testUnmarshalValues(t, a, c, err, "TestUnmarshalJSON")
 }
 
 func TestUnmarshalXML(t *testing.T) {
@@ -113,7 +116,7 @@ func TestUnmarshalXML(t *testing.T) {
 	c := &testStruct{}
 
 	err := cnfgfile.Unmarshal(c, "tests/config.xml")
-	testUnmarshalValues(a, c, err, "TestUnmarshalXML")
+	testUnmarshalValues(t, a, c, err, "TestUnmarshalXML")
 }
 
 func TestUnmarshalYAML(t *testing.T) {
@@ -123,7 +126,7 @@ func TestUnmarshalYAML(t *testing.T) {
 	c := &testStruct{}
 
 	err := cnfgfile.Unmarshal(c, "tests/config.yaml")
-	testUnmarshalValues(a, c, err, "TestUnmarshalYAML")
+	testUnmarshalValues(t, a, c, err, "TestUnmarshalYAML")
 }
 
 func TestUnmarshalBz2YAML(t *testing.T) {
@@ -133,7 +136,7 @@ func TestUnmarshalBz2YAML(t *testing.T) {
 	c := &testStruct{}
 
 	err := cnfgfile.Unmarshal(c, "tests/config.yaml.bz2")
-	testUnmarshalValues(a, c, err, "TestUnmarshalYAML")
+	testUnmarshalValues(t, a, c, err, "TestUnmarshalYAML")
 }
 
 func TestUnmarshalTOML(t *testing.T) {
@@ -143,7 +146,7 @@ func TestUnmarshalTOML(t *testing.T) {
 	c := &testStruct{}
 
 	err := cnfgfile.Unmarshal(c, "tests/config.toml")
-	testUnmarshalValues(a, c, err, "TestUnmarshalTOML")
+	testUnmarshalValues(t, a, c, err, "TestUnmarshalTOML")
 }
 
 // The cnfgfile.Unmarshal() procedure can be used in place of: xml.Unmarshal,

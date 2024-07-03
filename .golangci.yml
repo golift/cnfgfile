@@ -7,8 +7,6 @@ linters:
     - execinquery
     # unused
     - exhaustruct
-    - exhaustive
     - depguard
-    - testifylint
 run:
   timeout: 3m

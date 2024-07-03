@@ -107,7 +107,7 @@ func (o *Opts) parseSlice(field reflect.Value, name string) error {
 
 // parseElement processes any supported element type.
 func (o *Opts) parseElement(field reflect.Value, name string) error {
-	switch kind := field.Kind(); kind {
+	switch kind := field.Kind(); kind { //nolint:exhaustive
 	case reflect.String:
 		return o.parseString(field, name)
 	case reflect.Struct:
