@@ -116,45 +116,45 @@ func TestReadConfigsErrors(t *testing.T) {
 func testData(t *testing.T, file string) dataStruct {
 	t.Helper()
 
-	str := String("filepath:" + file)
+	str := String(cnfgfile.DefaultPrefix + file)
 
 	return dataStruct{
 		Name:    "me",
-		Address: "filepath:" + file,
+		Address: cnfgfile.DefaultPrefix + file,
 		Embed: struct {
 			EmbedName    string
 			EmbedAddress string
 			EmbedNumber  int
 		}{
-			EmbedAddress: "filepath:" + file,
+			EmbedAddress: cnfgfile.DefaultPrefix + file,
 		},
 		Struct: Struct{
 			EmbedName:    "me2",
-			EmbedAddress: "filepath:" + file,
+			EmbedAddress: cnfgfile.DefaultPrefix + file,
 		},
 		Named: &Struct{
 			EmbedName:    "me3",
-			EmbedAddress: "filepath:" + file,
+			EmbedAddress: cnfgfile.DefaultPrefix + file,
 		},
 		Map: map[string]string{
-			"map_string":  "filepath:" + file,
+			"map_string":  cnfgfile.DefaultPrefix + file,
 			"map2_string": "data stuff",
 		},
 		MapI: map[int]string{
-			2: "filepath:" + file,
+			2: cnfgfile.DefaultPrefix + file,
 			5: "data stuff",
 		},
-		Strings: []string{"foo", "filepath:" + file},
+		Strings: []string{"foo", cnfgfile.DefaultPrefix + file},
 		Structs: []Struct{{
 			EmbedName:    "me4",
-			EmbedAddress: "filepath:" + file,
+			EmbedAddress: cnfgfile.DefaultPrefix + file,
 		}},
 		Ptructs: []*Struct{{
 			EmbedName:    "me5",
-			EmbedAddress: "filepath:" + file,
+			EmbedAddress: cnfgfile.DefaultPrefix + file,
 		}},
-		String: String("filepath:" + file),
-		Etring: String("filepath:" + file),
+		String: String(cnfgfile.DefaultPrefix + file),
+		Etring: String(cnfgfile.DefaultPrefix + file),
 		StrPtr: &str,
 	}
 }
