@@ -53,7 +53,8 @@ func TestReadConfigs(t *testing.T) {
 	data := testData(t, file)
 	testString := strings.TrimSuffix(testString, "\n")
 
-	require.NoError(t, cnfgfile.ReadConfigs(&data, nil), "got an unexpected error")
+	output, err := cnfgfile.Parse(&data, nil)
+	require.NoError(t, err, "got an unexpected error")
 	assert.EqualValues(t, testString, data.Address)
 	assert.EqualValues(t, testString, data.Embed.EmbedAddress)
 	assert.EqualValues(t, testString, data.Named.EmbedAddress)
@@ -69,10 +70,14 @@ func TestReadConfigs(t *testing.T) {
 	assert.EqualValues(t, "data stuff", data.Map["map2_string"])
 	assert.EqualValues(t, testString, data.MapI[2], "an unexpected change was made to a string")
 	assert.EqualValues(t, "data stuff", data.MapI[5], "an unexpected change was made to a string")
+	assert.Len(t, output, 12, "12 items have filepath: in them and should be returned")
 
 	data.Name = "super:" + file
-	require.NoError(t, cnfgfile.ReadConfigs(&data, &cnfgfile.Opts{Prefix: "super:", MaxSize: 8}))
+	output, err = cnfgfile.Parse(&data, &cnfgfile.Opts{Prefix: "super:", MaxSize: 8})
+	require.NoError(t, err)
 	assert.Equal(t, testString[:8], data.Name, "opts.MaxSize doesn't seem to be working")
+	assert.Len(t, output, 1, "only 1 item should be in the output map")
+	assert.Equal(t, output["Config.Name"], file, "the parsed file is not in the config map")
 }
 
 func TestReadConfigsErrors(t *testing.T) {
@@ -89,33 +94,38 @@ func TestReadConfigsErrors(t *testing.T) {
 		Name:    "MyThing",
 	}
 
-	require.ErrorIs(t, cnfgfile.ReadConfigs(data, opts), cnfgfile.ErrNotPtr)
+	_, err := cnfgfile.Parse(data, opts)
+	require.ErrorIs(t, err, cnfgfile.ErrNotPtr)
 
 	data.Name = "super:/no_file"
 	// This test:
 	// makes sure the correct opts.Prefix is used.
 	// makes sure the proper opts.Name is used.
 	// makes sure a missing file returns a useful error.
-	require.ErrorContains(t, cnfgfile.ReadConfigs(&data, opts),
+	_, err = cnfgfile.Parse(&data, opts)
+	require.ErrorContains(t, err,
 		"element failure: MyThing.Name: opening file: open /no_file:",
 		"this may indicate the wrong prefix or name is being used")
 
 	data.Name = ""
 	data.Map["MAPKEY"] = "super:/no_file"
-	require.ErrorContains(t, cnfgfile.ReadConfigs(&data, opts),
+	_, err = cnfgfile.Parse(&data, opts)
+	require.ErrorContains(t, err,
 		"element failure: MyThing.Map[MAPKEY]: opening file: open /no_file:",
 		"this may indicate the wrong prefix or name is being used")
 
 	delete(data.Map, "MAPKEY")
 	data.LulWut = map[interface{}][]*TestStruct{"some_key": {nil, {EmbedName: "super:/no_file"}, nil}}
-	require.ErrorContains(t, cnfgfile.ReadConfigs(&data, opts),
+	_, err = cnfgfile.Parse(&data, opts)
+	require.ErrorContains(t, err,
 		"element failure: MyThing.LulWut[some_key][2/3].EmbedName: opening file: open /no_file:",
 		"this test fails is the member names are not concatenated properly")
 
 	data.LulWut = map[interface{}][]*TestStruct{
 		String("flop"): {nil, {StarStruck: &TestStruct{MemberName: []String{"super:/no_file", ""}}}},
 	}
-	require.ErrorContains(t, cnfgfile.ReadConfigs(&data, opts),
+	_, err = cnfgfile.Parse(&data, opts)
+	require.ErrorContains(t, err,
 		"element failure: MyThing.LulWut[flop][2/2].StarStruck.MemberName[1/2]: opening file: open /no_file:",
 		"this test fails is the member names are not concatenated properly")
 }
