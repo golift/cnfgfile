@@ -12,10 +12,12 @@ import (
 
 const testString = "hi, this is a string\n"
 
-type Struct struct {
+type TestStruct struct {
 	EmbedName    string
 	EmbedAddress string
 	EmbedNumber  int
+	MemberName   []String
+	StarStruck   *TestStruct
 }
 
 type dataStruct struct {
@@ -27,14 +29,14 @@ type dataStruct struct {
 		EmbedAddress string
 		EmbedNumber  int
 	}
-	Struct
-	Named   *Struct
+	TestStruct
+	Named   *TestStruct
 	Map     map[string]string
 	MapI    map[int]string
-	LulWut  map[interface{}][]*Struct
+	LulWut  map[interface{}][]*TestStruct
 	Strings []string
-	Structs []Struct
-	Ptructs []*Struct
+	Structs []TestStruct
+	Ptructs []*TestStruct
 	Etring  String
 	String
 	StrPtr *String
@@ -55,7 +57,7 @@ func TestReadConfigs(t *testing.T) {
 	assert.EqualValues(t, testString, data.Address)
 	assert.EqualValues(t, testString, data.Embed.EmbedAddress)
 	assert.EqualValues(t, testString, data.Named.EmbedAddress)
-	assert.EqualValues(t, testString, data.Struct.EmbedAddress)
+	assert.EqualValues(t, testString, data.TestStruct.EmbedAddress)
 	assert.EqualValues(t, testString, data.Strings[1])
 	assert.EqualValues(t, testString, data.Structs[0].EmbedAddress)
 	assert.EqualValues(t, testString, data.Ptructs[0].EmbedAddress)
@@ -105,9 +107,16 @@ func TestReadConfigsErrors(t *testing.T) {
 		"this may indicate the wrong prefix or name is being used")
 
 	delete(data.Map, "MAPKEY")
-	data.LulWut = map[interface{}][]*Struct{"some_key": {nil, {EmbedName: "super:/no_file"}, nil}}
+	data.LulWut = map[interface{}][]*TestStruct{"some_key": {nil, {EmbedName: "super:/no_file"}, nil}}
 	require.ErrorContains(t, cnfgfile.ReadConfigs(&data, opts),
 		"element failure: MyThing.LulWut[some_key][2/3].EmbedName: opening file: open /no_file:",
+		"this test fails is the member names are not concatenated properly")
+
+	data.LulWut = map[interface{}][]*TestStruct{
+		String("flop"): {nil, {StarStruck: &TestStruct{MemberName: []String{"super:/no_file", ""}}}},
+	}
+	require.ErrorContains(t, cnfgfile.ReadConfigs(&data, opts),
+		"element failure: MyThing.LulWut[flop][2/2].StarStruck.MemberName[1/2]: opening file: open /no_file:",
 		"this test fails is the member names are not concatenated properly")
 }
 
@@ -128,11 +137,11 @@ func testData(t *testing.T, file string) dataStruct {
 		}{
 			EmbedAddress: cnfgfile.DefaultPrefix + file,
 		},
-		Struct: Struct{
+		TestStruct: TestStruct{
 			EmbedName:    "me2",
 			EmbedAddress: cnfgfile.DefaultPrefix + file,
 		},
-		Named: &Struct{
+		Named: &TestStruct{
 			EmbedName:    "me3",
 			EmbedAddress: cnfgfile.DefaultPrefix + file,
 		},
@@ -145,11 +154,11 @@ func testData(t *testing.T, file string) dataStruct {
 			5: "data stuff",
 		},
 		Strings: []string{"foo", cnfgfile.DefaultPrefix + file},
-		Structs: []Struct{{
+		Structs: []TestStruct{{
 			EmbedName:    "me4",
 			EmbedAddress: cnfgfile.DefaultPrefix + file,
 		}},
-		Ptructs: []*Struct{{
+		Ptructs: []*TestStruct{{
 			EmbedName:    "me5",
 			EmbedAddress: cnfgfile.DefaultPrefix + file,
 		}},
