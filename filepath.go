@@ -9,12 +9,12 @@ import (
 	"strings"
 )
 
-// Changes contains the optional input parameters for ReadConfigs() to control how a data structure is processed.
-type Changes struct {
+// Opts contains the optional input parameters for ReadConfigs() to control how a data structure is processed.
+type Opts struct {
 	// Prefix is the string we check for to see if we should read in a config file.
 	// If left blank the default of filepath: will be used.
 	Prefix string
-	// The maximum amount of data we should read in from a config file.
+	// The maximum amount of bytes that should read in from an external config file.
 	// If you don't expect large values, leave this small.
 	// If left at 0, the default of 1024 is used.
 	MaxSize uint
@@ -37,35 +37,36 @@ const (
 // then the provided filepath is opened, read, and the contents are saved into the string. Replacing the filepath
 // that it once was. This allows you to define a Config struct, and your users can store secrets (or other strings)
 // in separate files. After you read in the base config data, pass a pointer to your config struct to this function,
-// and it will automatically go to work filling in any extra external config data.
-func ReadConfigs(data interface{}, changes *Changes) error {
-	if rd := reflect.TypeOf(data); rd.Kind() != reflect.Ptr || rd.Elem().Kind() != reflect.Struct {
-		return fmt.Errorf("ReadConfigs: %w", ErrNotPtr)
+// and it will automatically go to work filling in any extra external config data. Opts may be nil, uses defaults.
+func ReadConfigs(input interface{}, opts *Opts) error {
+	data := reflect.TypeOf(input)
+	if data.Kind() != reflect.Ptr || data.Elem().Kind() != reflect.Struct {
+		return ErrNotPtr
 	}
 
-	if changes == nil {
-		changes = &Changes{}
+	if opts == nil {
+		opts = &Opts{}
 	}
 
-	if changes.MaxSize == 0 {
-		changes.MaxSize = DefaultMaxSize
+	if opts.MaxSize == 0 {
+		opts.MaxSize = DefaultMaxSize
 	}
 
-	if changes.Prefix == "" {
-		changes.Prefix = DefaultPrefix
+	if opts.Prefix == "" {
+		opts.Prefix = DefaultPrefix
 	}
 
-	if changes.Name == "" {
-		changes.Name = DefaultName
+	if opts.Name == "" {
+		opts.Name = DefaultName
 	}
 
-	return changes.parseStruct(reflect.ValueOf(data).Elem(), changes.Name)
+	return opts.parseStruct(reflect.ValueOf(input).Elem(), opts.Name)
 }
 
-func (c *Changes) parseStruct(rv reflect.Value, name string) error {
-	for i := rv.NumField() - 1; i >= 0; i-- {
-		err := c.parseElement(rv.Field(i), name+"."+rv.Type().Field(i).Name)
-		if err != nil {
+func (o *Opts) parseStruct(field reflect.Value, name string) error {
+	for i := field.NumField() - 1; i >= 0; i-- {
+		name := name + "." + field.Type().Field(i).Name // name is overloaded here.
+		if err := o.parseElement(field.Field(i), name); err != nil {
 			return err
 		}
 	}
@@ -73,24 +74,30 @@ func (c *Changes) parseStruct(rv reflect.Value, name string) error {
 	return nil
 }
 
-func (c *Changes) parseMap(field reflect.Value, name string) error {
+func (o *Opts) parseMap(field reflect.Value, name string) error {
 	for _, key := range field.MapKeys() {
-		value := reflect.Indirect(reflect.New(field.MapIndex(key).Type()))
-		value.Set(field.MapIndex(key))
+		// Copy the map field.
+		fieldCopy := reflect.Indirect(reflect.New(field.MapIndex(key).Type()))
+		// Set the copy's value to the value of the original.
+		fieldCopy.Set(field.MapIndex(key))
 
-		if err := c.parseElement(value, fmt.Sprint(name, key)); err != nil {
+		// Parse the copy, because map values cannot be .Set() directly.
+		name := fmt.Sprint(name, "[", key, "]") // name is overloaded here.
+		if err := o.parseElement(fieldCopy, name); err != nil {
 			return err
 		}
 
-		field.SetMapIndex(key, value)
+		// Update the map index with the possibly-modified copy that got parsed.
+		field.SetMapIndex(key, fieldCopy)
 	}
 
 	return nil
 }
 
-func (c *Changes) parseSlice(field reflect.Value, name string) error {
-	for i := field.Len() - 1; i >= 0; i-- {
-		if err := c.parseElement(field.Index(i), fmt.Sprint(name, i)); err != nil {
+func (o *Opts) parseSlice(field reflect.Value, name string) error {
+	for idx := field.Len() - 1; idx >= 0; idx-- {
+		name := fmt.Sprint(name, "[", idx+1, "/", field.Len(), "]") // name is overloaded here.
+		if err := o.parseElement(field.Index(idx), name); err != nil {
 			return err
 		}
 	}
@@ -98,35 +105,36 @@ func (c *Changes) parseSlice(field reflect.Value, name string) error {
 	return nil
 }
 
-func (c *Changes) parseElement(field reflect.Value, name string) error {
+// parseElement processes any supported element type.
+func (o *Opts) parseElement(field reflect.Value, name string) error {
 	switch kind := field.Kind(); kind {
 	case reflect.String:
-		return c.parseString(field, name)
+		return o.parseString(field, name)
 	case reflect.Struct:
-		return c.parseStruct(field, name)
+		return o.parseStruct(field, name)
 	case reflect.Pointer, reflect.Interface:
-		return c.parseElement(field.Elem(), name)
+		return o.parseElement(field.Elem(), name)
 	case reflect.Slice, reflect.Array:
-		return c.parseSlice(field, name)
+		return o.parseSlice(field, name)
 	case reflect.Map:
-		return c.parseMap(field, name)
+		return o.parseMap(field, name)
 	default:
 		return nil
 	}
 }
 
-func (c *Changes) parseString(field reflect.Value, name string) error {
+func (o *Opts) parseString(field reflect.Value, name string) error {
 	value := field.String()
-	if !strings.HasPrefix(value, c.Prefix) {
+	if !strings.HasPrefix(value, o.Prefix) {
 		return nil
 	}
 
-	data, err := readFile(strings.TrimPrefix(value, c.Prefix), c.MaxSize)
+	data, err := readFile(strings.TrimPrefix(value, o.Prefix), o.MaxSize)
 	if err != nil {
 		return fmt.Errorf("element failure: %s: %w", name, err)
 	}
 
-	if c.NoTrim {
+	if o.NoTrim {
 		field.SetString(data)
 	} else {
 		field.SetString(strings.TrimSpace(data))

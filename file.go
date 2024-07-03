@@ -20,7 +20,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	toml "github.com/BurntSushi/toml"
 	yaml "gopkg.in/yaml.v3"
@@ -29,27 +28,8 @@ import (
 // Errors this library may produce.
 var (
 	ErrNoFile = errors.New("must provide at least 1 file to unmarshal")
-	ErrNotPtr = errors.New("must provide a pointer to a struct")
+	ErrNotPtr = errors.New("ReadConfigs: must provide a pointer to a struct")
 )
-
-// Duration allows unmarshalling time durations from a config file.
-type Duration struct {
-	time.Duration
-}
-
-// UnmarshalText parses a duration type from a config file. This method works
-// with the Duration type to allow unmarshaling of durations from files and
-// env variables in the same struct. You won't generally call this directly.
-func (d *Duration) UnmarshalText(b []byte) error {
-	dur, err := time.ParseDuration(string(b))
-	if err != nil {
-		return fmt.Errorf("parsing duration '%s': %w", b, err)
-	}
-
-	d.Duration = dur
-
-	return nil
-}
 
 // Unmarshal parses a configuration file (of any format) into a config struct.
 // This is a shorthand method for calling Unmarshal against the json, xml, yaml
