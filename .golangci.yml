@@ -2,11 +2,29 @@ linters:
   enable-all: true
   disable:
     # deprecated
-    - tagalign
     - gomnd
     - execinquery
-    # unused
-    - exhaustruct
-    - depguard
+
+linters-settings:
+   depguard:
+     rules:
+       main:
+        files:
+          - $all
+        allow:
+          - $gostd
+          - github.com/BurntSushi/toml
+          - github.com/stretchr/testify
+          - gopkg.in/yaml.v3
+
 run:
-  timeout: 3m
+  timeout: 2m
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-rules:
+    # Exclude exhaustruct from testing files.
+    - linters:
+        - exhaustruct
+      path: '(.+)_test\.go'

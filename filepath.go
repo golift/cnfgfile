@@ -83,6 +83,7 @@ func getOpts(opts *Opts) *Opts {
 			Prefix:  DefaultPrefix,
 			MaxSize: DefaultMaxSize,
 			Name:    DefaultName,
+			NoTrim:  false,
 			output:  make(map[string]string),
 		}
 	}

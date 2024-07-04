@@ -11,22 +11,22 @@ import (
 )
 
 type testStruct struct {
-	PointerSlice  []*testSubConfig `json:"pslice" xml:"pslice" yaml:"pslice" toml:"pslice"`
-	StructSlice   []testSubConfig  `json:"sslice" xml:"sslice" yaml:"sslice" toml:"sslice"`
-	Struct        testSubConfig    `json:"struct" xml:"struct" yaml:"struct" toml:"struct"`
-	PointerStruct *testSubConfig   `json:"pstruct" xml:"pstruct" yaml:"pstruct" toml:"pstruct"`
+	PointerSlice  []*testSubConfig `json:"pslice"  toml:"pslice"  xml:"pslice"  yaml:"pslice"`
+	StructSlice   []testSubConfig  `json:"sslice"  toml:"sslice"  xml:"sslice"  yaml:"sslice"`
+	Struct        testSubConfig    `json:"struct"  toml:"struct"  xml:"struct"  yaml:"struct"`
+	PointerStruct *testSubConfig   `json:"pstruct" toml:"pstruct" xml:"pstruct" yaml:"pstruct"`
 	// These dont get targeted during unmarhsal (not in the files).
-	PointerSlice2  []*testSubConfig `json:"pslice2" xml:"pslice2" yaml:"pslice2" toml:"pslice2"`
-	StructSlice2   []testSubConfig  `json:"sslice2" xml:"sslice2" yaml:"sslice2" toml:"sslice2"`
-	Struct2        testSubConfig    `json:"struct2" xml:"struct2" yaml:"struct2" toml:"struct2"`
-	PointerStruct2 *testSubConfig   `json:"pstruct2" xml:"pstruct2" yaml:"pstruct2" toml:"pstruct2"`
+	PointerSlice2  []*testSubConfig `json:"pslice2"  toml:"pslice2"  xml:"pslice2"  yaml:"pslice2"`
+	StructSlice2   []testSubConfig  `json:"sslice2"  toml:"sslice2"  xml:"sslice2"  yaml:"sslice2"`
+	Struct2        testSubConfig    `json:"struct2"  toml:"struct2"  xml:"struct2"  yaml:"struct2"`
+	PointerStruct2 *testSubConfig   `json:"pstruct2" toml:"pstruct2" xml:"pstruct2" yaml:"pstruct2"`
 }
 
 type testSubConfig struct {
-	Bool    bool     `json:"bool" xml:"bool" yaml:"bool" toml:"bool"`
-	Int     int64    `json:"int" xml:"int" yaml:"int" toml:"int"`
-	StringP *string  `json:"string" xml:"string" yaml:"string" toml:"string"`
-	FloatP  *float64 `json:"float" xml:"float" yaml:"float" toml:"float"`
+	Bool    bool     `json:"bool"   toml:"bool"   xml:"bool"   yaml:"bool"`
+	Int     int64    `json:"int"    toml:"int"    xml:"int"    yaml:"int"`
+	StringP *string  `json:"string" toml:"string" xml:"string" yaml:"string"`
+	FloatP  *float64 `json:"float"  toml:"float"  xml:"float"  yaml:"float"`
 }
 
 func testUnmarshalValues(t *testing.T, assert *assert.Assertions, config *testStruct, err error, from string) {
@@ -158,9 +158,9 @@ func TestUnmarshalTOML(t *testing.T) {
 func ExampleUnmarshal() {
 	// Recommend adding tags for each type to your struct members. Provide full compatibility.
 	type Config struct {
-		Interval cnfgfile.Duration `json:"interval" xml:"interval" toml:"interval" yaml:"interval"`
-		Location string            `json:"location" xml:"location" toml:"location" yaml:"location"`
-		Provided bool              `json:"provided" xml:"provided" toml:"provided" yaml:"provided"`
+		Interval cnfgfile.Duration `json:"interval" toml:"interval" xml:"interval" yaml:"interval"`
+		Location string            `json:"location" toml:"location" xml:"location" yaml:"location"`
+		Provided bool              `json:"provided" toml:"provided" xml:"provided" yaml:"provided"`
 	}
 
 	// Create a test file with some test data to unmarshal.
