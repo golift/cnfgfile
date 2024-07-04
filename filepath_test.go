@@ -21,10 +21,12 @@ type TestStruct struct {
 }
 
 type dataStruct struct {
-	Name    string
-	Address string
-	Number  int
-	Embed   struct {
+	Name      string
+	Address   string
+	Interface interface{}
+	Sliceface []interface{}
+	Number    int
+	Embed     struct {
 		EmbedName    string
 		EmbedAddress string
 		EmbedNumber  int
@@ -44,7 +46,7 @@ type dataStruct struct {
 
 type String string
 
-func TestReadConfigs(t *testing.T) {
+func TestParse(t *testing.T) {
 	t.Parallel()
 
 	file := makeTextFile(t)
@@ -80,7 +82,7 @@ func TestReadConfigs(t *testing.T) {
 	assert.Equal(t, output["Config.Name"], file, "the parsed file is not in the config map")
 }
 
-func TestReadConfigsErrors(t *testing.T) {
+func TestParseErrors(t *testing.T) {
 	t.Parallel()
 
 	file := makeTextFile(t)
@@ -138,8 +140,10 @@ func testData(t *testing.T, file string) dataStruct {
 	str := String(cnfgfile.DefaultPrefix + file)
 
 	return dataStruct{
-		Name:    "me",
-		Address: cnfgfile.DefaultPrefix + file,
+		Name:      "me",
+		Address:   cnfgfile.DefaultPrefix + file,
+		Interface: cnfgfile.DefaultPrefix + file,
+		Sliceface: []interface{}{nil, cnfgfile.DefaultPrefix + file},
 		Embed: struct {
 			EmbedName    string
 			EmbedAddress string

@@ -113,21 +113,30 @@ func getOpts(input *Opts) *Opts {
 
 // parseElement processes any supported element type, and it gets called recursively a lot in this package.
 func (o *Opts) parseElement(elem reflect.Value, name string) error {
-	switch kind := elem.Kind(); kind { //nolint:exhaustive
-	case reflect.String:
-		return o.parseString(elem, name)
-	case reflect.Struct:
-		return o.parseStruct(elem, name)
-	case reflect.Pointer, reflect.Interface:
-		return o.parseElement(elem.Elem(), name)
-	case reflect.Slice, reflect.Array:
-		return o.parseSlice(elem, name)
-	case reflect.Map:
-		return o.parseMap(elem, name)
-	default:
-		// We only care about strings, and things that contain strings.
-		return nil
+	if fn := o.kindFn(elem.Kind()); fn != nil {
+		return fn(elem, name)
 	}
+
+	return nil // Unsupported type.
+}
+
+// kindFn contains all the supported kinds and their corresponding parse method.
+// Returns nil if the provided kind is not supported.
+func (o *Opts) kindFn(kind reflect.Kind) func(reflect.Value, string) error {
+	return map[reflect.Kind]func(reflect.Value, string) error{
+		reflect.Interface: o.parsePointer,
+		reflect.Pointer:   o.parsePointer,
+		reflect.String:    o.parseString,
+		reflect.Struct:    o.parseStruct,
+		reflect.Slice:     o.parseSlice,
+		reflect.Array:     o.parseSlice,
+		reflect.Map:       o.parseMap,
+	}[kind]
+}
+
+// parsePointer allows dereferencing pointers and interfaces before passing them to the element parser.
+func (o *Opts) parsePointer(elem reflect.Value, name string) error {
+	return o.parseElement(elem.Elem(), name) // We could suffix the name here.
 }
 
 // If you pass in a non-struct to this function, you'll experience a panic.
@@ -144,7 +153,12 @@ func (o *Opts) parseStruct(elem reflect.Value, name string) error {
 
 // If you pass in a non-map to this function, you'll experience a panic.
 func (o *Opts) parseMap(elem reflect.Value, name string) error {
-	for _, key := range elem.MapKeys() {
+	keys := elem.MapKeys()
+	if len(keys) == 0 || o.kindFn(elem.MapIndex(keys[0]).Kind()) == nil {
+		return nil // Avoid traversing map types that don't contain strings.
+	}
+
+	for _, key := range keys {
 		// Copy the map field, using this ridiculous reflect magic.
 		elemCopy := reflect.Indirect(reflect.New(elem.MapIndex(key).Type()))
 		// Set the copy's value to the value of the original.
@@ -163,10 +177,15 @@ func (o *Opts) parseMap(elem reflect.Value, name string) error {
 	return nil
 }
 
-// parseSlice is probably slow on large byte or int/float slices. What's a good way to make that faster?
+// parseSlice traverses all slice elements if the slice kind is supported.
 func (o *Opts) parseSlice(slice reflect.Value, name string) error {
-	for idx := slice.Len() - 1; idx >= 0; idx-- {
-		name := fmt.Sprint(name, "[", idx+1, "/", slice.Len(), "]") // name is overloaded here.
+	length := slice.Len()
+	if length == 0 || o.kindFn(slice.Index(0).Kind()) == nil {
+		return nil // Avoid traversing byte slices and other things that don't contain strings.
+	}
+
+	for idx := length - 1; idx >= 0; idx-- {
+		name := fmt.Sprint(name, "[", idx+1, "/", length, "]") // name is overloaded here.
 		if err := o.parseElement(slice.Index(idx), name); err != nil {
 			return err
 		}
