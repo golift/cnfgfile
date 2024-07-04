@@ -100,7 +100,7 @@ func getOpts(opts *Opts) *Opts {
 		opts.Name = DefaultName
 	}
 
-	// make a copy to make the map thread safe.
+	// return a copy to make the map thread safe.
 	return &Opts{
 		Prefix:  opts.Prefix,
 		MaxSize: opts.MaxSize,
