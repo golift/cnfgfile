@@ -28,7 +28,7 @@ import (
 // Errors this library may produce.
 var (
 	ErrNoFile = errors.New("must provide at least 1 file to unmarshal")
-	ErrNotPtr = errors.New("ReadConfigs: must provide a pointer to a struct")
+	ErrNotPtr = errors.New("ReadConfigs: must provide a pointer to data structure that can be modified")
 )
 
 // Unmarshal parses a configuration file (of any format) into a config struct.
