@@ -27,7 +27,6 @@ type Opts struct {
 	// If you don't expect large values, leave this small. If left at 0, the default of 1024 is used.
 	MaxSize uint
 	// output is where we store the map of element => filepath that gets returned to the caller.
-	output map[string]string
 }
 
 // Parse(Opts) Defaults.
@@ -71,79 +70,87 @@ func (p *ElemError) Unwrap() error {
 // If there is an element failure, the failed element and all prior parsed elements will be present in the map.
 // Unwrap errors into a ElemError type to get the failed file name and a derived name of the element it was found in.
 func Parse(ptr interface{}, opts *Opts) (map[string]string, error) {
-	if t := reflect.TypeOf(ptr); t.Kind() != reflect.Ptr {
+	if reflect.TypeOf(ptr).Kind() != reflect.Ptr {
 		return nil, ErrNotPtr
 	}
 
-	opts = getOpts(opts)
+	parser := opts.newParser()
 	// Parse the input element and return the output map.
-	return opts.output, opts.parseElement(reflect.ValueOf(ptr), opts.Name)
+	return parser.Output, parser.Parse(reflect.ValueOf(ptr), parser.Name)
 }
 
-// opts is an optional input, but required in this package.
-func getOpts(input *Opts) *Opts {
-	output := &Opts{ // Create a copy to make the map thread safe.
-		Name:    DefaultName,
-		Prefix:  DefaultPrefix,
-		NoTrim:  false,
-		MaxSize: DefaultMaxSize,
-		output:  make(map[string]string),
+// parser is used for internal methods.
+type parser struct {
+	Output map[string]string // Output is returned after parsing.
+	Opts                     // Opts is the input parameters.
+}
+
+// newParser returns a parser with attached Opts. Sets defaults for any omitted values.
+func (o *Opts) newParser() *parser {
+	output := &parser{
+		Output: make(map[string]string),
+		Opts: Opts{ // Create a copy to make changes thread safe.
+			Name:    DefaultName,
+			Prefix:  DefaultPrefix,
+			NoTrim:  false,
+			MaxSize: DefaultMaxSize,
+		},
 	}
 
-	if input == nil {
+	if o == nil {
 		return output // Nothing to copy, return defaults.
 	}
 
-	output.NoTrim = input.NoTrim
+	output.NoTrim = o.NoTrim
 	// Copy values, and set defaults for omitted values.
-	if output.Name = input.Name; output.Name == "" {
+	if output.Name = o.Name; output.Name == "" {
 		output.Name = DefaultName
 	}
 
-	if output.Prefix = input.Prefix; output.Prefix == "" {
+	if output.Prefix = o.Prefix; output.Prefix == "" {
 		output.Prefix = DefaultPrefix
 	}
 
-	if output.MaxSize = input.MaxSize; output.MaxSize == 0 {
+	if output.MaxSize = o.MaxSize; output.MaxSize == 0 {
 		output.MaxSize = DefaultMaxSize
 	}
 
 	return output
 }
 
-// parseElement processes any supported element type, and it gets called recursively a lot in this package.
-func (o *Opts) parseElement(elem reflect.Value, name string) error {
-	if fn := o.kindFn(elem.Kind()); fn != nil {
-		return fn(elem, name)
+// Parse processes any supported element type, and it gets called recursively a lot in this package.
+func (p *parser) Parse(element reflect.Value, name string) error {
+	if parse := p.parseFunc(element); parse != nil {
+		return parse(element, name)
 	}
 
 	return nil // Unsupported type.
 }
 
-// kindFn contains all the supported kinds and their corresponding parse method.
+// parseFunc contains all the supported kinds and their corresponding parse method.
 // Returns nil if the provided kind is not supported.
-func (o *Opts) kindFn(kind reflect.Kind) func(reflect.Value, string) error {
+func (p *parser) parseFunc(elem reflect.Value) func(reflect.Value, string) error {
 	return map[reflect.Kind]func(reflect.Value, string) error{
-		reflect.Interface: o.parsePointer,
-		reflect.Pointer:   o.parsePointer,
-		reflect.String:    o.parseString,
-		reflect.Struct:    o.parseStruct,
-		reflect.Slice:     o.parseSlice,
-		reflect.Array:     o.parseSlice,
-		reflect.Map:       o.parseMap,
-	}[kind]
+		reflect.Interface: p.parsePointer,
+		reflect.Pointer:   p.parsePointer,
+		reflect.String:    p.parseString,
+		reflect.Struct:    p.parseStruct,
+		reflect.Slice:     p.parseSlice,
+		reflect.Array:     p.parseSlice,
+		reflect.Map:       p.parseMap,
+	}[elem.Kind()]
 }
 
 // parsePointer allows dereferencing pointers and interfaces before passing them to the element parser.
-func (o *Opts) parsePointer(elem reflect.Value, name string) error {
-	return o.parseElement(elem.Elem(), name) // We could suffix the name here.
+func (p *parser) parsePointer(elem reflect.Value, name string) error {
+	return p.Parse(elem.Elem(), name) // We could suffix the name here.
 }
 
 // If you pass in a non-struct to this function, you'll experience a panic.
-func (o *Opts) parseStruct(elem reflect.Value, name string) error {
+func (p *parser) parseStruct(elem reflect.Value, name string) error {
 	for i := elem.NumField() - 1; i >= 0; i-- {
 		name := name + "." + elem.Type().Field(i).Name // name is overloaded here.
-		if err := o.parseElement(elem.Field(i), name); err != nil {
+		if err := p.Parse(elem.Field(i), name); err != nil {
 			return err
 		}
 	}
@@ -152,21 +159,21 @@ func (o *Opts) parseStruct(elem reflect.Value, name string) error {
 }
 
 // If you pass in a non-map to this function, you'll experience a panic.
-func (o *Opts) parseMap(elem reflect.Value, name string) error {
+func (p *parser) parseMap(elem reflect.Value, name string) error {
 	keys := elem.MapKeys()
-	if len(keys) == 0 || o.kindFn(elem.MapIndex(keys[0]).Kind()) == nil {
+	if len(keys) == 0 || p.parseFunc(elem.MapIndex(keys[0])) == nil {
 		return nil // Avoid traversing map types that don't contain strings.
 	}
 
 	for _, key := range keys {
-		// Copy the map field, using this ridiculous reflect magic.
+		// Copy the map field type, using this ridiculous reflect magic.
 		elemCopy := reflect.Indirect(reflect.New(elem.MapIndex(key).Type()))
 		// Set the copy's value to the value of the original.
 		elemCopy.Set(elem.MapIndex(key))
 
 		// Parse the copy, because map values cannot be .Set() directly.
 		name := fmt.Sprint(name, "[", key, "]") // name is overloaded here.
-		if err := o.parseElement(elemCopy, name); err != nil {
+		if err := p.Parse(elemCopy, name); err != nil {
 			return err
 		}
 
@@ -178,15 +185,15 @@ func (o *Opts) parseMap(elem reflect.Value, name string) error {
 }
 
 // parseSlice traverses all slice elements if the slice kind is supported.
-func (o *Opts) parseSlice(slice reflect.Value, name string) error {
+func (p *parser) parseSlice(slice reflect.Value, name string) error {
 	length := slice.Len()
-	if length == 0 || o.kindFn(slice.Index(0).Kind()) == nil {
+	if length == 0 || p.parseFunc(slice.Index(0)) == nil {
 		return nil // Avoid traversing byte slices and other things that don't contain strings.
 	}
 
 	for idx := length - 1; idx >= 0; idx-- {
 		name := fmt.Sprint(name, "[", idx+1, "/", length, "]") // name is overloaded here.
-		if err := o.parseElement(slice.Index(idx), name); err != nil {
+		if err := p.Parse(slice.Index(idx), name); err != nil {
 			return err
 		}
 	}
@@ -196,20 +203,20 @@ func (o *Opts) parseSlice(slice reflect.Value, name string) error {
 
 // This parse function is non-recursive. The buck stops here, so to speak.
 // If the string has the correct prefix, and can be set, read the file and set it!
-func (o *Opts) parseString(elem reflect.Value, name string) error {
+func (p *parser) parseString(elem reflect.Value, name string) error {
 	value := elem.String()
-	if !elem.CanSet() || !strings.HasPrefix(value, o.Prefix) {
+	if !elem.CanSet() || !strings.HasPrefix(value, p.Prefix) {
 		return nil
 	}
 
 	// Save this parsed file to the output map. Remove the prefix and any enclosing whitespace.
-	o.output[name] = strings.TrimSpace(strings.TrimPrefix(value, o.Prefix))
+	p.Output[name] = strings.TrimSpace(strings.TrimPrefix(value, p.Prefix))
 	// Read in the file contents.
-	fileContent, err := o.readFile(o.output[name])
+	fileContent, err := p.readFile(p.Output[name])
 	if err != nil {
 		return &ElemError{ // Warp the error with our custom type.
 			Name:  name,
-			File:  o.output[name],
+			File:  p.Output[name],
 			Inner: err,
 		}
 	}
@@ -220,7 +227,7 @@ func (o *Opts) parseString(elem reflect.Value, name string) error {
 }
 
 // Read and return a file's contents according to requested byte size and trim or not.
-func (o *Opts) readFile(filePath string) (string, error) {
+func (p *parser) readFile(filePath string) (string, error) {
 	fOpen, err := os.OpenFile(filePath, os.O_RDONLY, 0)
 	if err != nil {
 		return "", fmt.Errorf("opening file: %w", err)
@@ -228,14 +235,14 @@ func (o *Opts) readFile(filePath string) (string, error) {
 	defer fOpen.Close()
 
 	// This is how .Read() works, it will return this many bytes (or less).
-	fileContent := make([]byte, o.MaxSize)
+	fileContent := make([]byte, p.MaxSize)
 	// size is the amount (count) of data (bytes) read.
 	size, err := fOpen.Read(fileContent)
 	if err != nil && !errors.Is(err, io.EOF) {
 		return "", fmt.Errorf("reading file: %w", err)
 	}
 
-	if o.NoTrim { // Leave any newlines or other enclosing whitespace.
+	if p.NoTrim { // Leave any newlines or other enclosing whitespace.
 		return string(fileContent[:size]), nil
 	}
 	// The [:size] trims off the extra junk from the empty byte slice.
