@@ -71,20 +71,18 @@ func Parse(input interface{}, opts *Opts) (map[string]string, error) {
 		return nil, ErrNotPtr
 	}
 
-	// opts is an optional input, but required in this package.
+	opts = getOpts(opts)
+	// parse the input struct and return the outmap.
+	return opts.output, opts.parseStruct(reflect.ValueOf(input).Elem(), opts.Name)
+}
+
+// opts is an optional input, but required in this package.
+func getOpts(opts *Opts) *Opts {
 	if opts == nil {
-		opts = &Opts{
+		return &Opts{
 			Prefix:  DefaultPrefix,
 			MaxSize: DefaultMaxSize,
 			Name:    DefaultName,
-			output:  make(map[string]string),
-		}
-	} else {
-		opts = &Opts{ // make a copy to make the map thread safe.
-			Prefix:  opts.Prefix,
-			MaxSize: opts.MaxSize,
-			NoTrim:  opts.NoTrim,
-			Name:    opts.Name,
 			output:  make(map[string]string),
 		}
 	}
@@ -102,8 +100,14 @@ func Parse(input interface{}, opts *Opts) (map[string]string, error) {
 		opts.Name = DefaultName
 	}
 
-	// parse the input struct and return the outmap.
-	return opts.output, opts.parseStruct(reflect.ValueOf(input).Elem(), opts.Name)
+	// make a copy to make the map thread safe.
+	return &Opts{
+		Prefix:  opts.Prefix,
+		MaxSize: opts.MaxSize,
+		NoTrim:  opts.NoTrim,
+		Name:    opts.Name,
+		output:  make(map[string]string),
+	}
 }
 
 // If you pass in a non-struct to this function, you'll experience a panic.
