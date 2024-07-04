@@ -47,6 +47,7 @@ type ParseError struct {
 // We do not print the filepath because it's (always?) included in the Inner error.
 func (p *ParseError) Error() string {
 	const prefix = "element failure"
+
 	return prefix + ": " + p.Element + ": " + p.Inner.Error()
 }
 
