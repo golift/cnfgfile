@@ -173,8 +173,8 @@ func (o *Opts) parseString(elem reflect.Value, name string) error {
 		return nil
 	}
 
-	// Save this parsed file to the output map.
-	o.output[name] = strings.TrimPrefix(value, o.Prefix)
+	// Save this parsed file to the output map. Remove the prefix and any enclosing whitespace.
+	o.output[name] = strings.TrimSpace(strings.TrimPrefix(value, o.Prefix))
 
 	data, err := readFile(o.output[name], o.MaxSize)
 	if err != nil {
@@ -195,7 +195,7 @@ func (o *Opts) parseString(elem reflect.Value, name string) error {
 }
 
 func readFile(filePath string, maxSize uint) (string, error) {
-	fOpen, err := os.OpenFile(strings.TrimSpace(filePath), os.O_RDONLY, 0)
+	fOpen, err := os.OpenFile(filePath, os.O_RDONLY, 0)
 	if err != nil {
 		return "", fmt.Errorf("opening file: %w", err)
 	}
