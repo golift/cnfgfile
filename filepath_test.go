@@ -95,7 +95,7 @@ func TestParseErrors(t *testing.T) {
 		NoTrim:  true,
 		Name:    "MyThing",
 	}
-	// Without a max depth limit, this recursive struct pointer will hit the the
+	// Without a max depth limit, this recursive struct pointer will hit the
 	// 10000 thread limit, or use all available system memory before crashing.
 	data.TestStruct.StarStruck = &data.TestStruct
 

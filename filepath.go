@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"reflect"
+	"runtime/debug"
 	"strings"
 )
 
@@ -73,12 +74,23 @@ func (p *ElemError) Unwrap() error {
 // The output map is a map of Config.Item => filepath. Use this to see what files were read-in for each config path.
 // If there is an element failure, the failed element and all prior parsed elements will be present in the map.
 // Unwrap errors into a ElemError type to get the failed file name and a derived name of the element it was found in.
-func Parse(ptr interface{}, opts *Opts) (map[string]string, error) {
+func Parse(ptr interface{}, opts *Opts) (_ map[string]string, err error) {
 	if reflect.TypeOf(ptr).Kind() != reflect.Ptr {
 		return nil, ErrNotPtr
 	}
 
 	parser := opts.newParser()
+
+	defer func() {
+		if r := recover(); r != nil {
+			err = &ElemError{ // Update the returned error.
+				Name:  parser.name,
+				File:  "",
+				Inner: fmt.Errorf("%w: %v\n%s", ErrPanic, r, string(debug.Stack())),
+			}
+		}
+	}()
+
 	// Parse the input element and return the output map.
 	return parser.Output, parser.Parse(reflect.ValueOf(ptr), parser.Name)
 }
@@ -89,8 +101,10 @@ type parser struct {
 	Opts
 	// Output is where we store the map of element => filepath that gets returned to the caller.
 	Output map[string]string
-	// Depth is the current depth while parsing.
-	Depth uint
+	// depth is the current depth while parsing.
+	depth uint
+	// name is the current element being parsed. Returned in an error in case of panic.
+	name string
 }
 
 // newParser returns a parser with attached Opts. Sets defaults for any omitted values.
@@ -104,6 +118,8 @@ func (o *Opts) newParser() *parser {
 			MaxSize:  DefaultMaxSize,
 			MaxDepth: DefaultMaxDepth,
 		},
+		depth: 0,
+		name:  DefaultName,
 	}
 
 	if o == nil {
@@ -111,6 +127,7 @@ func (o *Opts) newParser() *parser {
 	}
 
 	output.NoTrim = o.NoTrim
+	output.name = o.Name
 	// Copy values, and set defaults for omitted values.
 	if output.Name = o.Name; output.Name == "" {
 		output.Name = DefaultName
@@ -133,11 +150,11 @@ func (o *Opts) newParser() *parser {
 
 // Parse processes any supported element type, and it gets called recursively a lot in this package.
 func (p *parser) Parse(element reflect.Value, name string) error {
-	p.Depth++
-	defer func() { p.Depth-- }()
+	p.depth++
+	defer func() { p.depth-- }()
 
-	if p.Depth >= p.MaxDepth {
-		// return fmt.Errorf("max depth %d: %v", p.MaxDepth, name)
+	if p.depth >= p.MaxDepth {
+		// return fmt.Errorf("max depth [%d/%d]: %v", p.Depth, p.MaxDepth, name)
 		return nil
 	}
 
@@ -164,18 +181,24 @@ func (p *parser) parseFunc(elem reflect.Value) func(reflect.Value, string) error
 
 // parsePointer allows dereferencing pointers and interfaces before passing them to the element parser.
 func (p *parser) parsePointer(elem reflect.Value, name string) error {
+	if elem.IsNil() {
+		return nil
+	}
+
 	return p.Parse(elem.Elem(), name) // We could suffix the name here.
 }
 
 // If you pass in a non-struct to this function, you'll experience a panic.
 func (p *parser) parseStruct(elem reflect.Value, name string) error {
 	for _, field := range reflect.VisibleFields(elem.Type()) {
-		if !field.IsExported() {
-			continue // Only mess with visible, exported struct members.
+		p.name = name + "." + field.Name
+
+		member, err := elem.FieldByIndexErr(field.Index)
+		if !field.IsExported() || err != nil {
+			continue // Only mess with visible, exported non-nil struct members.
 		}
 
-		err := p.Parse(elem.FieldByIndex(field.Index), name+"."+field.Name)
-		if err != nil {
+		if err := p.Parse(member, p.name); err != nil {
 			return err
 		}
 	}
@@ -197,8 +220,8 @@ func (p *parser) parseMap(elem reflect.Value, name string) error {
 		elemCopy.Set(elem.MapIndex(key))
 
 		// Parse the copy, because map values cannot be .Set() directly.
-		name := fmt.Sprint(name, "[", key, "]") // name is overloaded here.
-		if err := p.Parse(elemCopy, name); err != nil {
+		p.name = fmt.Sprint(name, "[", key, "]")
+		if err := p.Parse(elemCopy, p.name); err != nil {
 			return err
 		}
 
@@ -217,8 +240,8 @@ func (p *parser) parseSlice(slice reflect.Value, name string) error {
 	}
 
 	for idx := length - 1; idx >= 0; idx-- {
-		name := fmt.Sprintf("%s[%d/%d]", name, idx+1, length) // name is overloaded here.
-		if err := p.Parse(slice.Index(idx), name); err != nil {
+		p.name = fmt.Sprintf("%s[%d/%d]", name, idx+1, length)
+		if err := p.Parse(slice.Index(idx), p.name); err != nil {
 			return err
 		}
 	}

@@ -27,6 +27,7 @@ import (
 
 // Errors this library may produce.
 var (
+	ErrPanic  = errors.New("bug in the golift.io/cnfgfile package; caught panic")
 	ErrNoFile = errors.New("must provide at least 1 file to unmarshal")
 	ErrNotPtr = errors.New("ReadConfigs: must provide a pointer to data structure that can be modified")
 )
