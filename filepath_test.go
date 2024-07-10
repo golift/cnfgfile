@@ -95,6 +95,9 @@ func TestParseErrors(t *testing.T) {
 		NoTrim:  true,
 		Name:    "MyThing",
 	}
+	// Without a max depth limit, this recursive struct pointer will hit the the
+	// 10000 thread limit, or use all available system memory before crashing.
+	data.TestStruct.StarStruck = &data.TestStruct
 
 	_, err := cnfgfile.Parse(data, opts)
 	require.ErrorIs(t, err, cnfgfile.ErrNotPtr)

@@ -26,14 +26,18 @@ type Opts struct {
 	// MaxSize is the maximum amount of bytes that are read in from an external config file.
 	// If you don't expect large values, leave this small. If left at 0, the default of 1024 is used.
 	MaxSize uint
-	// output is where we store the map of element => filepath that gets returned to the caller.
+	// MaxDepths controls how deep into nested structs this package will recurse. If left unchecked, a
+	// recursive pointer may use all your memory and crash, so a maximum is required. If left at 0, the
+	// default of 200 is set.
+	MaxDepth uint
 }
 
 // Parse(Opts) Defaults.
 const (
-	DefaultPrefix  = "filepath:"
-	DefaultMaxSize = uint(1024)
-	DefaultName    = "Config"
+	DefaultPrefix   = "filepath:"
+	DefaultMaxSize  = uint(1024)
+	DefaultName     = "Config"
+	DefaultMaxDepth = uint(200)
 )
 
 // ElemError is returned as an error interface when there's an error reading a string-parsed file.
@@ -81,8 +85,12 @@ func Parse(ptr interface{}, opts *Opts) (map[string]string, error) {
 
 // parser is used for internal methods.
 type parser struct {
-	Output map[string]string // Output is returned after parsing.
-	Opts                     // Opts is the input parameters.
+	// Opts is the input parameters.
+	Opts
+	// Output is where we store the map of element => filepath that gets returned to the caller.
+	Output map[string]string
+	// Depth is the current depth while parsing.
+	Depth uint
 }
 
 // newParser returns a parser with attached Opts. Sets defaults for any omitted values.
@@ -90,10 +98,11 @@ func (o *Opts) newParser() *parser {
 	output := &parser{
 		Output: make(map[string]string),
 		Opts: Opts{ // Create a copy to make changes thread safe.
-			Name:    DefaultName,
-			Prefix:  DefaultPrefix,
-			NoTrim:  false,
-			MaxSize: DefaultMaxSize,
+			Name:     DefaultName,
+			Prefix:   DefaultPrefix,
+			NoTrim:   false,
+			MaxSize:  DefaultMaxSize,
+			MaxDepth: DefaultMaxDepth,
 		},
 	}
 
@@ -115,11 +124,23 @@ func (o *Opts) newParser() *parser {
 		output.MaxSize = DefaultMaxSize
 	}
 
+	if output.MaxDepth = o.MaxDepth; output.MaxDepth == 0 {
+		output.MaxDepth = DefaultMaxDepth
+	}
+
 	return output
 }
 
 // Parse processes any supported element type, and it gets called recursively a lot in this package.
 func (p *parser) Parse(element reflect.Value, name string) error {
+	p.Depth++
+	defer func() { p.Depth-- }()
+
+	if p.Depth >= p.MaxDepth {
+		// return fmt.Errorf("max depth %d: %v", p.MaxDepth, name)
+		return nil
+	}
+
 	if parse := p.parseFunc(element); parse != nil {
 		return parse(element, name)
 	}
@@ -148,9 +169,13 @@ func (p *parser) parsePointer(elem reflect.Value, name string) error {
 
 // If you pass in a non-struct to this function, you'll experience a panic.
 func (p *parser) parseStruct(elem reflect.Value, name string) error {
-	for i := elem.NumField() - 1; i >= 0; i-- {
-		name := name + "." + elem.Type().Field(i).Name // name is overloaded here.
-		if err := p.Parse(elem.Field(i), name); err != nil {
+	for _, field := range reflect.VisibleFields(elem.Type()) {
+		if !field.IsExported() {
+			continue // Only mess with visible, exported struct members.
+		}
+
+		err := p.Parse(elem.FieldByIndex(field.Index), name+"."+field.Name)
+		if err != nil {
 			return err
 		}
 	}
@@ -192,7 +217,7 @@ func (p *parser) parseSlice(slice reflect.Value, name string) error {
 	}
 
 	for idx := length - 1; idx >= 0; idx-- {
-		name := fmt.Sprint(name, "[", idx+1, "/", length, "]") // name is overloaded here.
+		name := fmt.Sprintf("%s[%d/%d]", name, idx+1, length) // name is overloaded here.
 		if err := p.Parse(slice.Index(idx), name); err != nil {
 			return err
 		}
