@@ -126,8 +126,8 @@ func (o *Opts) newParser() *parser {
 		return output // Nothing to copy, return defaults.
 	}
 
-	output.NoTrim = o.NoTrim
 	output.name = o.Name
+	output.NoTrim = o.NoTrim
 	// Copy values, and set defaults for omitted values.
 	if output.Name = o.Name; output.Name == "" {
 		output.Name = DefaultName
@@ -190,11 +190,12 @@ func (p *parser) parsePointer(elem reflect.Value, name string) error {
 
 // If you pass in a non-struct to this function, you'll experience a panic.
 func (p *parser) parseStruct(elem reflect.Value, name string) error {
-	for _, field := range reflect.VisibleFields(elem.Type()) {
+	for _, field := range reflect.VisibleFields(elem.Type()) { // Visible.
+		// Set p.name first so it appears in any panic that follows.
 		p.name = name + "." + field.Name
 
-		member, err := elem.FieldByIndexErr(field.Index)
-		if !field.IsExported() || err != nil {
+		member, err := elem.FieldByIndexErr(field.Index) // Non-nil.
+		if err != nil || !field.IsExported() {           // Exported.
 			continue // Only mess with visible, exported non-nil struct members.
 		}
 
