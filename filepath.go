@@ -27,9 +27,10 @@ type Opts struct {
 	// MaxSize is the maximum amount of bytes that are read in from an external config file.
 	// If you don't expect large values, leave this small. If left at 0, the default of 1024 is used.
 	MaxSize uint
-	// MaxDepths controls how deep into nested structs this package will recurse. If left unchecked, a
-	// recursive pointer may use all your memory and crash, so a maximum is required. If left at 0, the
-	// default of 200 is set.
+	// MaxDepth controls how deep into nested structs, maps, slices and pointers that Parse will recurse.
+	// If left unchecked, recursive pointers may use all your memory and crash, so a maximum is required.
+	// If left at 0, the default of 200 is set.
+	// This means maps and slices will parse only up to 200 elements each.
 	MaxDepth uint
 	// TransformPath allows you to pass a custom function to wrap the file path. Can be used, for
 	// instance if you need to add a path prefix to all provided paths. Some apps use this to expand
@@ -69,7 +70,7 @@ func (p *ElemError) Error() string {
 	if p.File == "" || strings.Contains(err, p.File) {
 		return prefix + ": " + p.Name + ": " + err
 	}
-
+	// We only get here if Opts.TransformPath changes the file path.
 	return prefix + ": " + p.Name + " (" + p.File + "): " + err
 }
 
@@ -104,7 +105,7 @@ func Parse(ptr interface{}, opts *Opts) (_ map[string]string, err error) {
 		}
 	}()
 
-	// Parse the input element and return the output map.
+	// Parse the input element pointer and return the output map.
 	return parser.Output, parser.Parse(reflect.ValueOf(ptr), parser.Name)
 }
 
@@ -157,9 +158,9 @@ func (input *Opts) newParser() *parser {
 // pick returns the first non-empty value provided.
 // This should only be used for initialization and not for parsing.
 func pick[V any](input ...V) V {
-	for _, v := range input {
-		if rv := reflect.ValueOf(v); rv.IsValid() && !rv.IsZero() {
-			return v
+	for idx := range input {
+		if v := reflect.ValueOf(input[idx]); v.IsValid() && !v.IsZero() {
+			return input[idx]
 		}
 	}
 
