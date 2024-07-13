@@ -61,11 +61,17 @@ type ElemError struct {
 }
 
 // Error satisfies the standard Go library error interface.
-// We do not print the filepath because it's (always?) included in the Inner error.
 func (p *ElemError) Error() string {
 	const prefix = "element failure"
 
-	return prefix + ": " + p.Name + ": " + p.Inner.Error()
+	err := p.Inner.Error()
+	// Do not print the filename if it's in the error already.
+	if p.File == "" || strings.Contains(err, p.File) {
+		return prefix + ": " + p.Name + ": " + err
+	}
+
+	return prefix + ": " + p.Name + " (" + p.File + "): " + err
+
 }
 
 // Unwrap is used to make the custom error work with errors.Is and errors.As.
@@ -116,7 +122,7 @@ type parser struct {
 }
 
 // newParser returns a parser with attached Opts. Sets defaults for any omitted values.
-func (o *Opts) newParser() *parser {
+func (input *Opts) newParser() *parser {
 	output := &parser{
 		Output: make(map[string]string),
 		Opts: Opts{ // Create a copy to make changes thread safe.
@@ -132,39 +138,33 @@ func (o *Opts) newParser() *parser {
 		CurrentElement: DefaultName,
 	}
 
-	if o == nil {
+	if input == nil {
 		return output // Nothing to copy, return defaults.
 	}
 
-	// Copy input values, and set defaults for omitted values.
-	if o.Name != "" {
-		output.Name = o.Name
-	}
-
-	if o.Prefix != "" {
-		output.Prefix = o.Prefix
-	}
-
-	if o.MaxSize != 0 {
-		output.MaxSize = o.MaxSize
-	}
-
-	if o.MaxDepth != 0 {
-		output.MaxDepth = o.MaxDepth
-	}
-
-	if o.TransformPath != nil {
-		output.TransformPath = o.TransformPath
-	}
-
-	if o.TransformFile != nil {
-		output.TransformFile = o.TransformFile
-	}
-
+	// Copy input values, or set defaults for omitted values.
+	output.Name = pick(input.Name, output.Name)
+	output.Prefix = pick(input.Prefix, output.Prefix)
+	output.MaxSize = pick(input.MaxSize, output.MaxSize)
+	output.MaxDepth = pick(input.MaxDepth, output.MaxDepth)
+	output.TransformPath = pick(input.TransformPath, output.TransformPath)
+	output.TransformFile = pick(input.TransformFile, output.TransformFile)
 	output.CurrentElement = output.Name
-	output.NoTrim = o.NoTrim
+	output.NoTrim = input.NoTrim
 
 	return output
+}
+
+// pick returns the first non-empty value provided.
+// This should only be used for initialization and not for parsing.
+func pick[V any](input ...V) V {
+	for _, v := range input {
+		if rv := reflect.ValueOf(v); rv.IsValid() && !rv.IsZero() {
+			return v
+		}
+	}
+
+	return *new(V)
 }
 
 // defaultTransformer passes a string through. This is the default transform procedure.
@@ -280,7 +280,7 @@ func (p *parser) parseString(elem reflect.Value, name string) error {
 		return nil
 	}
 
-	// Save this parsed file to the output map. Remove the prefix and any enclosing whitespace.
+	// Save this parsed path to the output map. Remove the prefix and any enclosing whitespace.
 	p.Output[name] = strings.TrimSpace(strings.TrimPrefix(value, p.Prefix))
 	// Read in the file contents.
 	fileContent, err := p.readFile(p.TransformPath(p.Output[name]))
