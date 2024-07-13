@@ -31,6 +31,12 @@ type Opts struct {
 	// recursive pointer may use all your memory and crash, so a maximum is required. If left at 0, the
 	// default of 200 is set.
 	MaxDepth uint
+	// TransformPath allows you to pass a custom function to wrap the file path. Can be used,
+	// for instance if you need to add a path prefix to all provided paths.
+	TransformPath func(string) string
+	// TransformPath allows you to pass a custom function to wrap the file content. Can be used,
+	// for instance if you need to remove all new lines from the file's content.
+	TransformFile func(string) string
 }
 
 // Parse(Opts) Defaults.
@@ -47,6 +53,7 @@ type ElemError struct {
 	// Name of the failed element.
 	Name string
 	// File name (path) of the failed file.
+	// If you want the post-transform name, pass this value to Opts.TransformPath().
 	File string
 	// Inner error returned reading the file.
 	Inner error
@@ -112,11 +119,13 @@ func (o *Opts) newParser() *parser {
 	output := &parser{
 		Output: make(map[string]string),
 		Opts: Opts{ // Create a copy to make changes thread safe.
-			Name:     DefaultName,
-			Prefix:   DefaultPrefix,
-			NoTrim:   false,
-			MaxSize:  DefaultMaxSize,
-			MaxDepth: DefaultMaxDepth,
+			Name:          DefaultName,
+			Prefix:        DefaultPrefix,
+			NoTrim:        false,
+			MaxSize:       DefaultMaxSize,
+			MaxDepth:      DefaultMaxDepth,
+			TransformFile: defaultTransformer,
+			TransformPath: defaultTransformer,
 		},
 		depth: 0,
 		name:  DefaultName,
@@ -126,27 +135,39 @@ func (o *Opts) newParser() *parser {
 		return output // Nothing to copy, return defaults.
 	}
 
-	output.name = o.Name
-	output.NoTrim = o.NoTrim
 	// Copy values, and set defaults for omitted values.
-	if output.Name = o.Name; output.Name == "" {
-		output.Name = DefaultName
+	if o.Name != "" {
+		output.Name = o.Name
 	}
 
-	if output.Prefix = o.Prefix; output.Prefix == "" {
-		output.Prefix = DefaultPrefix
+	if o.Prefix != "" {
+		output.Prefix = o.Prefix
 	}
 
-	if output.MaxSize = o.MaxSize; output.MaxSize == 0 {
-		output.MaxSize = DefaultMaxSize
+	if o.MaxSize != 0 {
+		output.MaxSize = o.MaxSize
 	}
 
-	if output.MaxDepth = o.MaxDepth; output.MaxDepth == 0 {
-		output.MaxDepth = DefaultMaxDepth
+	if o.MaxDepth != 0 {
+		output.MaxDepth = o.MaxDepth
 	}
+
+	if o.TransformPath != nil {
+		output.TransformPath = o.TransformPath
+	}
+
+	if o.TransformFile != nil {
+		output.TransformFile = o.TransformFile
+	}
+
+	output.name = output.Name
+	output.NoTrim = o.NoTrim
 
 	return output
 }
+
+// defaultTransformer passes a string through. This is the default transform procedure.
+func defaultTransformer(str string) string { return str }
 
 // Parse processes any supported element type, and it gets called recursively a lot in this package.
 func (p *parser) Parse(element reflect.Value, name string) error {
@@ -261,7 +282,7 @@ func (p *parser) parseString(elem reflect.Value, name string) error {
 	// Save this parsed file to the output map. Remove the prefix and any enclosing whitespace.
 	p.Output[name] = strings.TrimSpace(strings.TrimPrefix(value, p.Prefix))
 	// Read in the file contents.
-	fileContent, err := p.readFile(p.Output[name])
+	fileContent, err := p.readFile(p.TransformPath(p.Output[name]))
 	if err != nil {
 		return &ElemError{ // Warp the error with our custom type.
 			Name:  name,
@@ -270,7 +291,8 @@ func (p *parser) parseString(elem reflect.Value, name string) error {
 		}
 	}
 
-	elem.SetString(fileContent) // Update the string element's value with the file contents.
+	// Update the string element's value with the file contents.
+	elem.SetString(p.TransformFile(fileContent))
 
 	return nil
 }

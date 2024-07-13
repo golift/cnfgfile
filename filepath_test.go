@@ -18,6 +18,7 @@ type TestStruct struct {
 	EmbedNumber  int
 	MemberName   []String
 	StarStruck   *TestStruct
+	invisible    string
 }
 
 type dataStruct struct {
@@ -61,6 +62,7 @@ func TestParse(t *testing.T) {
 	assert.EqualValues(t, testString, data.Embed.EmbedAddress)
 	assert.EqualValues(t, testString, data.Named.EmbedAddress)
 	assert.EqualValues(t, testString, data.TestStruct.EmbedAddress)
+	assert.EqualValues(t, cnfgfile.DefaultPrefix+file, data.TestStruct.invisible, "do not modify non-exported members")
 	assert.EqualValues(t, testString, data.Strings[1])
 	assert.EqualValues(t, testString, data.Structs[0].EmbedAddress)
 	assert.EqualValues(t, testString, data.Ptructs[0].EmbedAddress)
@@ -75,7 +77,7 @@ func TestParse(t *testing.T) {
 	assert.Len(t, output, 12, "12 items have filepath: in them and should be returned")
 
 	data.Name = "super:" + file
-	output, err = cnfgfile.Parse(&data, &cnfgfile.Opts{Prefix: "super:", MaxSize: 8})
+	output, err = cnfgfile.Parse(&data, &cnfgfile.Opts{Prefix: "super:", MaxSize: 8, NoTrim: true})
 	require.NoError(t, err)
 	assert.Equal(t, testString[:8], data.Name, "opts.MaxSize doesn't seem to be working")
 	assert.Len(t, output, 1, "only 1 item should be in the output map")
@@ -155,6 +157,7 @@ func testData(t *testing.T, file string) dataStruct {
 			EmbedAddress: cnfgfile.DefaultPrefix + file,
 		},
 		TestStruct: TestStruct{
+			invisible:    cnfgfile.DefaultPrefix + file,
 			EmbedName:    "me2",
 			EmbedAddress: cnfgfile.DefaultPrefix + file,
 		},
