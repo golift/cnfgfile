@@ -6,16 +6,18 @@ linters:
     - execinquery
 
 linters-settings:
-   depguard:
-     rules:
-       main:
+  ireturn:
+    allow: generic,stdlib,error
+  depguard:
+    rules:
+      main:
         files:
-          - $all
+        - $all
         allow:
-          - $gostd
-          - github.com/BurntSushi/toml
-          - github.com/stretchr/testify
-          - gopkg.in/yaml.v3
+        - $gostd
+        - github.com/BurntSushi/toml
+        - github.com/stretchr/testify
+        - gopkg.in/yaml.v3
 
 run:
   timeout: 2m

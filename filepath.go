@@ -71,7 +71,6 @@ func (p *ElemError) Error() string {
 	}
 
 	return prefix + ": " + p.Name + " (" + p.File + "): " + err
-
 }
 
 // Unwrap is used to make the custom error work with errors.Is and errors.As.
