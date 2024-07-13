@@ -31,8 +31,9 @@ type Opts struct {
 	// recursive pointer may use all your memory and crash, so a maximum is required. If left at 0, the
 	// default of 200 is set.
 	MaxDepth uint
-	// TransformPath allows you to pass a custom function to wrap the file path. Can be used,
-	// for instance if you need to add a path prefix to all provided paths.
+	// TransformPath allows you to pass a custom function to wrap the file path. Can be used, for
+	// instance if you need to add a path prefix to all provided paths. Some apps use this to expand
+	// a tilde ~ into the running user's home folder path.
 	TransformPath func(string) string
 	// TransformPath allows you to pass a custom function to wrap the file content. Can be used,
 	// for instance if you need to remove all new lines from the file's content.
@@ -91,8 +92,8 @@ func Parse(ptr interface{}, opts *Opts) (_ map[string]string, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = &ElemError{ // Update the returned error.
-				Name:  parser.name,
-				File:  "",
+				Name:  parser.CurrentElement, // Last element parsed.
+				File:  "",                    // Not a file error at all.
 				Inner: fmt.Errorf("%w: %v\n%s", ErrPanic, r, string(debug.Stack())),
 			}
 		}
@@ -108,10 +109,10 @@ type parser struct {
 	Opts
 	// Output is where we store the map of element => filepath that gets returned to the caller.
 	Output map[string]string
-	// depth is the current depth while parsing.
-	depth uint
-	// name is the current element being parsed. Returned in an error in case of panic.
-	name string
+	// CurrentDepth is the current nested struct depth while parsing.
+	CurrentDepth uint
+	// CurrentElement is the current (or last) element parsed. Returned in an error in case of panic.
+	CurrentElement string
 }
 
 // newParser returns a parser with attached Opts. Sets defaults for any omitted values.
@@ -127,15 +128,15 @@ func (o *Opts) newParser() *parser {
 			TransformFile: defaultTransformer,
 			TransformPath: defaultTransformer,
 		},
-		depth: 0,
-		name:  DefaultName,
+		CurrentDepth:   0,
+		CurrentElement: DefaultName,
 	}
 
 	if o == nil {
 		return output // Nothing to copy, return defaults.
 	}
 
-	// Copy values, and set defaults for omitted values.
+	// Copy input values, and set defaults for omitted values.
 	if o.Name != "" {
 		output.Name = o.Name
 	}
@@ -160,7 +161,7 @@ func (o *Opts) newParser() *parser {
 		output.TransformFile = o.TransformFile
 	}
 
-	output.name = output.Name
+	output.CurrentElement = output.Name
 	output.NoTrim = o.NoTrim
 
 	return output
@@ -171,11 +172,11 @@ func defaultTransformer(str string) string { return str }
 
 // Parse processes any supported element type, and it gets called recursively a lot in this package.
 func (p *parser) Parse(element reflect.Value, name string) error {
-	p.depth++
-	defer func() { p.depth-- }()
+	p.CurrentDepth++
+	defer func() { p.CurrentDepth-- }()
 
-	if p.depth >= p.MaxDepth {
-		// return fmt.Errorf("max depth [%d/%d]: %v", p.Depth, p.MaxDepth, name)
+	if p.CurrentDepth > p.MaxDepth {
+		// return fmt.Errorf("max depth [%d/%d]: %v", p.CurrentDepth, p.MaxDepth, name)
 		return nil
 	}
 
@@ -212,15 +213,15 @@ func (p *parser) parsePointer(elem reflect.Value, name string) error {
 // If you pass in a non-struct to this function, you'll experience a panic.
 func (p *parser) parseStruct(elem reflect.Value, name string) error {
 	for _, field := range reflect.VisibleFields(elem.Type()) { // Visible.
-		// Set p.name first so it appears in any panic that follows.
-		p.name = name + "." + field.Name
+		// Set p.CurrentElement first so it appears in any panic that follows.
+		p.CurrentElement = name + "." + field.Name
 
 		member, err := elem.FieldByIndexErr(field.Index) // Non-nil.
 		if err != nil || !field.IsExported() {           // Exported.
 			continue // Only mess with visible, exported non-nil struct members.
 		}
 
-		if err := p.Parse(member, p.name); err != nil {
+		if err := p.Parse(member, p.CurrentElement); err != nil {
 			return err
 		}
 	}
@@ -242,8 +243,8 @@ func (p *parser) parseMap(elem reflect.Value, name string) error {
 		elemCopy.Set(elem.MapIndex(key))
 
 		// Parse the copy, because map values cannot be .Set() directly.
-		p.name = fmt.Sprint(name, "[", key, "]")
-		if err := p.Parse(elemCopy, p.name); err != nil {
+		p.CurrentElement = fmt.Sprint(name, "[", key, "]")
+		if err := p.Parse(elemCopy, p.CurrentElement); err != nil {
 			return err
 		}
 
@@ -262,8 +263,8 @@ func (p *parser) parseSlice(slice reflect.Value, name string) error {
 	}
 
 	for idx := length - 1; idx >= 0; idx-- {
-		p.name = fmt.Sprintf("%s[%d/%d]", name, idx+1, length)
-		if err := p.Parse(slice.Index(idx), p.name); err != nil {
+		p.CurrentElement = fmt.Sprintf("%s[%d/%d]", name, idx+1, length)
+		if err := p.Parse(slice.Index(idx), p.CurrentElement); err != nil {
 			return err
 		}
 	}
