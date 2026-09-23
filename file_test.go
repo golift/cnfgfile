@@ -171,11 +171,14 @@ func ExampleUnmarshal() {
 	}
 
 	yaml := "---\ninterval: 5m\nlocation: Earth\nprovided: true\n"
-	if _, err = fmt.Fprint(path, yaml); err != nil {
+
+	_, err = fmt.Fprint(path, yaml)
+	if err != nil {
 		panic(err)
 	}
 
-	if err = path.Close(); err != nil {
+	err = path.Close()
+	if err != nil {
 		panic(err)
 	}
 

@@ -2,41 +2,34 @@ version: "2"
 linters:
   default: all
   disable:
-    - nlreturn
-    - exhaustruct
-    - exhaustruct_v5
-    - depguard
-    - wsl
-    - wsl_v5
-    - goconst
-    - gomodguard
-    - noinlineerr
-    - nonamedreturns
+    - nlreturn # wsl_v5 is good enough.
+    - wsl # deprecated.
+    - exhaustruct # deprecated.
+    - gomodguard # deprecated.
+  settings:
+    ireturn:
+      allow:
+        - anon
+        - error
+        - empty
+        - stdlib
+        - generic
+    depguard:
+      rules:
+        main:
+          files:
+            - $all
+          allow:
+            - $gostd
+            - github.com/BurntSushi/toml
+            - github.com/stretchr/testify
+            - gopkg.in/yaml.v3
+            - golift.io/cnfgfile
   exclusions:
     rules:
       - linters:
-          - funlen
-          - goconst
-          - wsl
-          - errcheck
-          - err113
-          - testpackage
-          - cyclop
-        path: .+_test.go
-  settings:
-    gosec:
-      excludes:
-        - G304
-        - G115
-        - G705
-    gocritic:
-      enable-all: true
-      disabled-checks:
-        - whyNoLint
-        - commentedOutCode
-      settings:
-        unnamedResult:
-          checkExported: true
+          - exhaustruct_v5
+        path: (.+)_test\.go
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0

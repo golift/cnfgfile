@@ -44,7 +44,7 @@ func Unmarshal(config any, configFile ...string) error {
 	}
 
 	for _, fileName := range configFile {
-		fileOpen, err := os.Open(fileName)
+		fileOpen, err := os.Open(fileName) //nolint:gosec // G304: the config path is the caller's input.
 		if err != nil {
 			return fmt.Errorf("opening file %s: %w", fileName, err)
 		}
@@ -88,11 +88,14 @@ func unmarshalOpenFile(config any, fileName string, fileOpen *os.File) error {
 
 func deCompress(fileReader *os.File) (io.Reader, error) {
 	buff := make([]byte, 512) //nolint:mnd
-	if _, err := fileReader.Read(buff); err != nil {
+
+	_, err := fileReader.Read(buff)
+	if err != nil {
 		return nil, fmt.Errorf("reading file %s: %w", fileReader.Name(), err)
 	}
 
-	if _, err := fileReader.Seek(0, io.SeekStart); err != nil {
+	_, err = fileReader.Seek(0, io.SeekStart)
+	if err != nil {
 		return nil, fmt.Errorf("seeking file start %s: %w", fileReader.Name(), err)
 	}
 

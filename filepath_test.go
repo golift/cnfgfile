@@ -10,7 +10,10 @@ import (
 	"golift.io/cnfgfile"
 )
 
-const testString = "hi, this is a string\n"
+const (
+	testString  = "hi, this is a string\n"
+	missingFile = "super:/no_file"
+)
 
 type TestStruct struct {
 	EmbedName    string
@@ -52,7 +55,6 @@ func TestParse(t *testing.T) {
 	t.Parallel()
 
 	file := makeTextFile(t)
-	defer os.Remove(file)
 
 	data := testData(t, file)
 	testString := strings.TrimSuffix(testString, "\n")
@@ -89,7 +91,6 @@ func TestParseErrors(t *testing.T) {
 	t.Parallel()
 
 	file := makeTextFile(t)
-	defer os.Remove(file)
 
 	data := testData(t, file)
 	opts := &cnfgfile.Opts{
@@ -105,7 +106,7 @@ func TestParseErrors(t *testing.T) {
 	_, err := cnfgfile.Parse(data, opts)
 	require.ErrorIs(t, err, cnfgfile.ErrNotPtr)
 
-	data.Name = "super:/no_file"
+	data.Name = missingFile
 	// This test:
 	// makes sure the correct opts.Prefix is used.
 	// makes sure the proper opts.Name is used.
@@ -116,21 +117,21 @@ func TestParseErrors(t *testing.T) {
 		"this may indicate the wrong prefix or name is being used")
 
 	data.Name = ""
-	data.Map["MAPKEY"] = "super:/no_file"
+	data.Map["MAPKEY"] = missingFile
 	_, err = cnfgfile.Parse(&data, opts)
 	require.ErrorContains(t, err,
 		"element failure: MyThing.Map[MAPKEY]: opening file: open /no_file:",
 		"this may indicate the wrong prefix or name is being used")
 
 	delete(data.Map, "MAPKEY")
-	data.LulWut = map[any][]*TestStruct{"some_key": {nil, {EmbedName: "super:/no_file"}, nil}}
+	data.LulWut = map[any][]*TestStruct{"some_key": {nil, {EmbedName: missingFile}, nil}}
 	_, err = cnfgfile.Parse(&data, opts)
 	require.ErrorContains(t, err,
 		"element failure: MyThing.LulWut[some_key][2/3].EmbedName: opening file: open /no_file:",
 		"this test fails is the member names are not concatenated properly")
 
 	data.LulWut = map[any][]*TestStruct{
-		String("flop"): {nil, {StarStruck: &TestStruct{MemberName: []String{"super:/no_file", ""}}}},
+		String("flop"): {nil, {StarStruck: &TestStruct{MemberName: []String{missingFile, ""}}}},
 	}
 	_, err = cnfgfile.Parse(&data, opts)
 	require.ErrorContains(t, err,
@@ -195,7 +196,9 @@ func makeTextFile(t *testing.T) string {
 	fOpen, err := os.CreateTemp(t.TempDir(), "cnfgfile_*_test")
 	require.NoError(t, err, "unable to create temporary file")
 
-	defer fOpen.Close()
+	defer func() {
+		assert.NoError(t, fOpen.Close())
+	}()
 
 	size, err := fOpen.WriteString(testString)
 	require.NoError(t, err, "unable to write temporary file data")

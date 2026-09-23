@@ -158,7 +158,7 @@ func (input *Opts) newParser() *parser {
 
 // pick returns the first non-empty value provided.
 // This should only be used for initialization and not for parsing.
-func pick[V any](input ...V) V { //nolint:ireturn // V is the caller's type parameter.
+func pick[V any](input ...V) V {
 	for idx := range input {
 		if v := reflect.ValueOf(input[idx]); v.IsValid() && !v.IsZero() {
 			return input[idx]
@@ -222,7 +222,8 @@ func (p *parser) parseStruct(elem reflect.Value, name string) error {
 			continue // Only mess with visible, exported non-nil struct members.
 		}
 
-		if err := p.Parse(member, p.CurrentElement); err != nil {
+		err = p.Parse(member, p.CurrentElement)
+		if err != nil {
 			return err
 		}
 	}
@@ -245,6 +246,7 @@ func (p *parser) parseMap(elem reflect.Value, name string) error {
 
 		// Parse the copy, because map values cannot be .Set() directly.
 		p.CurrentElement = fmt.Sprint(name, "[", key, "]")
+
 		err := p.Parse(elemCopy, p.CurrentElement)
 		if err != nil {
 			return err
@@ -266,6 +268,7 @@ func (p *parser) parseSlice(slice reflect.Value, name string) error {
 
 	for idx := length - 1; idx >= 0; idx-- {
 		p.CurrentElement = fmt.Sprintf("%s[%d/%d]", name, idx+1, length)
+
 		err := p.Parse(slice.Index(idx), p.CurrentElement)
 		if err != nil {
 			return err
@@ -303,6 +306,7 @@ func (p *parser) parseString(elem reflect.Value, name string) error {
 
 // Read and return a file's contents according to requested byte size and trim or not.
 func (p *parser) readFile(filePath string) (string, error) {
+	//nolint:gosec // G304: the filepath prefix value is the caller's input.
 	fOpen, err := os.OpenFile(filePath, os.O_RDONLY, 0)
 	if err != nil {
 		return "", fmt.Errorf("opening file: %w", err)
