@@ -10,7 +10,10 @@ import (
 	"golift.io/cnfgfile"
 )
 
-const testString = "hi, this is a string\n"
+const (
+	testString  = "hi, this is a string\n"
+	missingFile = "super:/no_file"
+)
 
 type TestStruct struct {
 	EmbedName    string
@@ -22,27 +25,28 @@ type TestStruct struct {
 }
 
 type dataStruct struct {
+	TestStruct
+	String
+
 	Name      string
 	Address   string
-	Interface interface{}
-	Sliceface []interface{}
+	Interface any
+	Sliceface []any
 	Number    int
 	Embed     struct {
 		EmbedName    string
 		EmbedAddress string
 		EmbedNumber  int
 	}
-	TestStruct
 	Named   *TestStruct
 	Map     map[string]string
 	MapI    map[int]string
-	LulWut  map[interface{}][]*TestStruct
+	LulWut  map[any][]*TestStruct
 	Strings []string
 	Structs []TestStruct
 	Ptructs []*TestStruct
 	Etring  String
-	String
-	StrPtr *String
+	StrPtr  *String
 }
 
 type String string
@@ -51,29 +55,28 @@ func TestParse(t *testing.T) {
 	t.Parallel()
 
 	file := makeTextFile(t)
-	defer os.Remove(file)
 
 	data := testData(t, file)
 	testString := strings.TrimSuffix(testString, "\n")
 
 	output, err := cnfgfile.Parse(&data, nil)
 	require.NoError(t, err, "got an unexpected error")
-	assert.EqualValues(t, testString, data.Address)
-	assert.EqualValues(t, testString, data.Embed.EmbedAddress)
-	assert.EqualValues(t, testString, data.Named.EmbedAddress)
-	assert.EqualValues(t, testString, data.TestStruct.EmbedAddress)
-	assert.EqualValues(t, cnfgfile.DefaultPrefix+file, data.TestStruct.invisible, "do not modify non-exported members")
-	assert.EqualValues(t, testString, data.Strings[1])
-	assert.EqualValues(t, testString, data.Structs[0].EmbedAddress)
-	assert.EqualValues(t, testString, data.Ptructs[0].EmbedAddress)
+	assert.Equal(t, testString, data.Address)
+	assert.Equal(t, testString, data.Embed.EmbedAddress)
+	assert.Equal(t, testString, data.Named.EmbedAddress)
+	assert.Equal(t, testString, data.EmbedAddress)
+	assert.Equal(t, cnfgfile.DefaultPrefix+file, data.invisible, "do not modify non-exported members")
+	assert.Equal(t, testString, data.Strings[1])
+	assert.Equal(t, testString, data.Structs[0].EmbedAddress)
+	assert.Equal(t, testString, data.Ptructs[0].EmbedAddress)
 	assert.EqualValues(t, testString, data.String)
 	assert.EqualValues(t, testString, data.Etring)
 	assert.EqualValues(t, testString, *data.StrPtr)
 
-	assert.EqualValues(t, testString, data.Map["map_string"])
-	assert.EqualValues(t, "data stuff", data.Map["map2_string"])
-	assert.EqualValues(t, testString, data.MapI[2], "an unexpected change was made to a string")
-	assert.EqualValues(t, "data stuff", data.MapI[5], "an unexpected change was made to a string")
+	assert.Equal(t, testString, data.Map["map_string"])
+	assert.Equal(t, "data stuff", data.Map["map2_string"])
+	assert.Equal(t, testString, data.MapI[2], "an unexpected change was made to a string")
+	assert.Equal(t, "data stuff", data.MapI[5], "an unexpected change was made to a string")
 	assert.Len(t, output, 12, "12 items have filepath: in them and should be returned")
 
 	data.Name = "super:" + file
@@ -88,7 +91,6 @@ func TestParseErrors(t *testing.T) {
 	t.Parallel()
 
 	file := makeTextFile(t)
-	defer os.Remove(file)
 
 	data := testData(t, file)
 	opts := &cnfgfile.Opts{
@@ -99,12 +101,12 @@ func TestParseErrors(t *testing.T) {
 	}
 	// Without a max depth limit, this recursive struct pointer will hit the
 	// 10000 thread limit, or use all available system memory before crashing.
-	data.TestStruct.StarStruck = &data.TestStruct
+	data.StarStruck = &data.TestStruct
 
 	_, err := cnfgfile.Parse(data, opts)
 	require.ErrorIs(t, err, cnfgfile.ErrNotPtr)
 
-	data.Name = "super:/no_file"
+	data.Name = missingFile
 	// This test:
 	// makes sure the correct opts.Prefix is used.
 	// makes sure the proper opts.Name is used.
@@ -115,21 +117,21 @@ func TestParseErrors(t *testing.T) {
 		"this may indicate the wrong prefix or name is being used")
 
 	data.Name = ""
-	data.Map["MAPKEY"] = "super:/no_file"
+	data.Map["MAPKEY"] = missingFile
 	_, err = cnfgfile.Parse(&data, opts)
 	require.ErrorContains(t, err,
 		"element failure: MyThing.Map[MAPKEY]: opening file: open /no_file:",
 		"this may indicate the wrong prefix or name is being used")
 
 	delete(data.Map, "MAPKEY")
-	data.LulWut = map[interface{}][]*TestStruct{"some_key": {nil, {EmbedName: "super:/no_file"}, nil}}
+	data.LulWut = map[any][]*TestStruct{"some_key": {nil, {EmbedName: missingFile}, nil}}
 	_, err = cnfgfile.Parse(&data, opts)
 	require.ErrorContains(t, err,
 		"element failure: MyThing.LulWut[some_key][2/3].EmbedName: opening file: open /no_file:",
 		"this test fails is the member names are not concatenated properly")
 
-	data.LulWut = map[interface{}][]*TestStruct{
-		String("flop"): {nil, {StarStruck: &TestStruct{MemberName: []String{"super:/no_file", ""}}}},
+	data.LulWut = map[any][]*TestStruct{
+		String("flop"): {nil, {StarStruck: &TestStruct{MemberName: []String{missingFile, ""}}}},
 	}
 	_, err = cnfgfile.Parse(&data, opts)
 	require.ErrorContains(t, err,
@@ -148,7 +150,7 @@ func testData(t *testing.T, file string) dataStruct {
 		Name:      "me",
 		Address:   cnfgfile.DefaultPrefix + file,
 		Interface: cnfgfile.DefaultPrefix + file,
-		Sliceface: []interface{}{nil, cnfgfile.DefaultPrefix + file},
+		Sliceface: []any{nil, cnfgfile.DefaultPrefix + file},
 		Embed: struct {
 			EmbedName    string
 			EmbedAddress string
@@ -191,9 +193,12 @@ func testData(t *testing.T, file string) dataStruct {
 func makeTextFile(t *testing.T) string {
 	t.Helper()
 
-	fOpen, err := os.CreateTemp("", "cnfgfile_*_test")
+	fOpen, err := os.CreateTemp(t.TempDir(), "cnfgfile_*_test")
 	require.NoError(t, err, "unable to create temporary file")
-	defer fOpen.Close()
+
+	defer func() {
+		assert.NoError(t, fOpen.Close())
+	}()
 
 	size, err := fOpen.WriteString(testString)
 	require.NoError(t, err, "unable to write temporary file data")

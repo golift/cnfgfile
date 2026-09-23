@@ -38,36 +38,49 @@ var (
 // unmarshaled with the corresponding package. If the suffix is missing, TOML
 // is assumed. Works with multiple files, so you can have stacked configurations.
 // Will detect (and decompress) a file that is gzip or bzip2 compressed.
-func Unmarshal(config interface{}, configFile ...string) error {
+func Unmarshal(config any, configFile ...string) error {
 	if len(configFile) == 0 {
 		return ErrNoFile
 	}
 
 	for _, fileName := range configFile {
-		fileOpen, err := os.Open(fileName)
+		fileOpen, err := os.Open(fileName) //nolint:gosec // G304: the config path is the caller's input.
 		if err != nil {
 			return fmt.Errorf("opening file %s: %w", fileName, err)
 		}
-		defer fileOpen.Close()
 
-		fileReader, err := deCompress(fileOpen)
-
-		switch lowerName := strings.ToLower(fileName); {
-		case err != nil:
-			return err
-		case strings.Contains(lowerName, ".json"):
-			err = json.NewDecoder(fileReader).Decode(config)
-		case strings.Contains(lowerName, ".xml"):
-			err = xml.NewDecoder(fileReader).Decode(config)
-		case strings.Contains(lowerName, ".yaml"), strings.Contains(lowerName, ".yml"):
-			err = yaml.NewDecoder(fileReader).Decode(config)
-		default:
-			_, err = toml.NewDecoder(fileReader).Decode(config)
+		err = unmarshalOpenFile(config, fileName, fileOpen)
+		if closeErr := fileOpen.Close(); err == nil {
+			err = closeErr
 		}
 
 		if err != nil {
-			return fmt.Errorf("unmarshaling file %s: %w", fileName, err)
+			return err
 		}
+	}
+
+	return nil
+}
+
+func unmarshalOpenFile(config any, fileName string, fileOpen *os.File) error {
+	fileReader, err := deCompress(fileOpen)
+	if err != nil {
+		return err
+	}
+
+	switch lowerName := strings.ToLower(fileName); {
+	case strings.Contains(lowerName, ".json"):
+		err = json.NewDecoder(fileReader).Decode(config)
+	case strings.Contains(lowerName, ".xml"):
+		err = xml.NewDecoder(fileReader).Decode(config)
+	case strings.Contains(lowerName, ".yaml"), strings.Contains(lowerName, ".yml"):
+		err = yaml.NewDecoder(fileReader).Decode(config)
+	default:
+		_, err = toml.NewDecoder(fileReader).Decode(config)
+	}
+
+	if err != nil {
+		return fmt.Errorf("unmarshaling file %s: %w", fileName, err)
 	}
 
 	return nil
@@ -75,11 +88,14 @@ func Unmarshal(config interface{}, configFile ...string) error {
 
 func deCompress(fileReader *os.File) (io.Reader, error) {
 	buff := make([]byte, 512) //nolint:mnd
-	if _, err := fileReader.Read(buff); err != nil {
+
+	_, err := fileReader.Read(buff)
+	if err != nil {
 		return nil, fmt.Errorf("reading file %s: %w", fileReader.Name(), err)
 	}
 
-	if _, err := fileReader.Seek(0, io.SeekStart); err != nil {
+	_, err = fileReader.Seek(0, io.SeekStart)
+	if err != nil {
 		return nil, fmt.Errorf("seeking file start %s: %w", fileReader.Name(), err)
 	}
 

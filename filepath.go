@@ -88,8 +88,8 @@ func (p *ElemError) Unwrap() error {
 // The output map is a map of Config.Item => filepath. Use this to see what files were read-in for each config path.
 // If there is an element failure, the failed element and all prior parsed elements will be present in the map.
 // Unwrap errors into a ElemError type to get the failed file name and a derived name of the element it was found in.
-func Parse(ptr interface{}, opts *Opts) (_ map[string]string, err error) {
-	if reflect.TypeOf(ptr).Kind() != reflect.Ptr {
+func Parse(ptr any, opts *Opts) (_ map[string]string, err error) {
+	if reflect.TypeOf(ptr).Kind() != reflect.Pointer {
 		return nil, ErrNotPtr
 	}
 
@@ -113,6 +113,7 @@ func Parse(ptr interface{}, opts *Opts) (_ map[string]string, err error) {
 type parser struct {
 	// Opts is the input parameters.
 	Opts
+
 	// Output is where we store the map of element => filepath that gets returned to the caller.
 	Output map[string]string
 	// CurrentDepth is the current nested struct depth while parsing.
@@ -221,7 +222,8 @@ func (p *parser) parseStruct(elem reflect.Value, name string) error {
 			continue // Only mess with visible, exported non-nil struct members.
 		}
 
-		if err := p.Parse(member, p.CurrentElement); err != nil {
+		err = p.Parse(member, p.CurrentElement)
+		if err != nil {
 			return err
 		}
 	}
@@ -244,7 +246,9 @@ func (p *parser) parseMap(elem reflect.Value, name string) error {
 
 		// Parse the copy, because map values cannot be .Set() directly.
 		p.CurrentElement = fmt.Sprint(name, "[", key, "]")
-		if err := p.Parse(elemCopy, p.CurrentElement); err != nil {
+
+		err := p.Parse(elemCopy, p.CurrentElement)
+		if err != nil {
 			return err
 		}
 
@@ -264,7 +268,9 @@ func (p *parser) parseSlice(slice reflect.Value, name string) error {
 
 	for idx := length - 1; idx >= 0; idx-- {
 		p.CurrentElement = fmt.Sprintf("%s[%d/%d]", name, idx+1, length)
-		if err := p.Parse(slice.Index(idx), p.CurrentElement); err != nil {
+
+		err := p.Parse(slice.Index(idx), p.CurrentElement)
+		if err != nil {
 			return err
 		}
 	}
@@ -300,11 +306,12 @@ func (p *parser) parseString(elem reflect.Value, name string) error {
 
 // Read and return a file's contents according to requested byte size and trim or not.
 func (p *parser) readFile(filePath string) (string, error) {
+	//nolint:gosec // G304: the filepath prefix value is the caller's input.
 	fOpen, err := os.OpenFile(filePath, os.O_RDONLY, 0)
 	if err != nil {
 		return "", fmt.Errorf("opening file: %w", err)
 	}
-	defer fOpen.Close()
+	defer func() { _ = fOpen.Close() }()
 
 	// This is how .Read() works, it will return this many bytes (or less).
 	fileContent := make([]byte, p.MaxSize)

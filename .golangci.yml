@@ -1,32 +1,41 @@
+version: "2"
 linters:
-  enable-all: true
+  default: all
   disable:
-    # deprecated
-    - gomnd
-    - execinquery
-
-linters-settings:
-  ireturn:
-    allow: generic,stdlib,error
-  depguard:
+    - nlreturn # wsl_v5 is good enough.
+    - wsl # deprecated.
+    - exhaustruct # deprecated.
+    - gomodguard # deprecated.
+  settings:
+    ireturn:
+      allow:
+        - anon
+        - error
+        - empty
+        - stdlib
+        - generic
+    depguard:
+      rules:
+        main:
+          files:
+            - $all
+          allow:
+            - $gostd
+            - github.com/BurntSushi/toml
+            - github.com/stretchr/testify
+            - gopkg.in/yaml.v3
+            - golift.io/cnfgfile
+  exclusions:
     rules:
-      main:
-        files:
-        - $all
-        allow:
-        - $gostd
-        - github.com/BurntSushi/toml
-        - github.com/stretchr/testify
-        - gopkg.in/yaml.v3
-
-run:
-  timeout: 2m
-
+      - linters:
+          - exhaustruct_v5
+        path: (.+)_test\.go
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-rules:
-    # Exclude exhaustruct from testing files.
-    - linters:
-        - exhaustruct
-      path: '(.+)_test\.go'
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
