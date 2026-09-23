@@ -1,32 +1,48 @@
+version: "2"
 linters:
-  enable-all: true
+  default: all
   disable:
-    # deprecated
-    - gomnd
-    - execinquery
-
-linters-settings:
-  ireturn:
-    allow: generic,stdlib,error
-  depguard:
+    - nlreturn
+    - exhaustruct
+    - exhaustruct_v5
+    - depguard
+    - wsl
+    - wsl_v5
+    - goconst
+    - gomodguard
+    - noinlineerr
+    - nonamedreturns
+  exclusions:
     rules:
-      main:
-        files:
-        - $all
-        allow:
-        - $gostd
-        - github.com/BurntSushi/toml
-        - github.com/stretchr/testify
-        - gopkg.in/yaml.v3
-
-run:
-  timeout: 2m
-
+      - linters:
+          - funlen
+          - goconst
+          - wsl
+          - errcheck
+          - err113
+          - testpackage
+          - cyclop
+        path: .+_test.go
+  settings:
+    gosec:
+      excludes:
+        - G304
+        - G115
+        - G705
+    gocritic:
+      enable-all: true
+      disabled-checks:
+        - whyNoLint
+        - commentedOutCode
+      settings:
+        unnamedResult:
+          checkExported: true
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-rules:
-    # Exclude exhaustruct from testing files.
-    - linters:
-        - exhaustruct
-      path: '(.+)_test\.go'
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports

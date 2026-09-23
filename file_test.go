@@ -29,51 +29,51 @@ type testSubConfig struct {
 	FloatP  *float64 `json:"float"  toml:"float"  xml:"float"  yaml:"float"`
 }
 
-func testUnmarshalValues(t *testing.T, assert *assert.Assertions, config *testStruct, err error, from string) {
+func testUnmarshalValues(t *testing.T, check *assert.Assertions, config *testStruct, err error, from string) {
 	t.Helper()
 
 	from += " "
 
 	require.NoError(t, err, "there should not be an error reading the test file")
 	// PointerSlice
-	assert.Len(config.PointerSlice, 1, from+"pointerslice is too short")
-	assert.True(config.PointerSlice[0].Bool, from+"the boolean was true")
+	check.Len(config.PointerSlice, 1, from+"pointerslice is too short")
+	check.True(config.PointerSlice[0].Bool, from+"the boolean was true")
 	//nolint:testifylint
-	assert.EqualValues(123.4567, *config.PointerSlice[0].FloatP, from+"the float64 was set to 123.4567")
-	assert.EqualValues(0, config.PointerSlice[0].Int, from+"int was not set so should be zero")
-	assert.Nil(config.PointerSlice[0].StringP, from+"the string pointer was not set so should remain nil")
+	check.EqualValues(123.4567, *config.PointerSlice[0].FloatP, from+"the float64 was set to 123.4567")
+	check.EqualValues(0, config.PointerSlice[0].Int, from+"int was not set so should be zero")
+	check.Nil(config.PointerSlice[0].StringP, from+"the string pointer was not set so should remain nil")
 
 	// StructSlice
-	assert.Len(config.StructSlice, 1, from+"pointerslice is too short")
-	assert.False(config.StructSlice[0].Bool, from+"the boolean was missing and should be false")
-	assert.Nil(config.StructSlice[0].FloatP, from+"the float64 was missing and should be nil")
-	assert.EqualValues(123, config.StructSlice[0].Int, from+"int was set to 123")
-	assert.EqualValues("foo", *config.StructSlice[0].StringP, from+"the string was set to foo")
+	check.Len(config.StructSlice, 1, from+"pointerslice is too short")
+	check.False(config.StructSlice[0].Bool, from+"the boolean was missing and should be false")
+	check.Nil(config.StructSlice[0].FloatP, from+"the float64 was missing and should be nil")
+	check.EqualValues(123, config.StructSlice[0].Int, from+"int was set to 123")
+	check.Equal("foo", *config.StructSlice[0].StringP, from+"the string was set to foo")
 
 	// Struct
-	assert.False(config.Struct.Bool, from+"the boolean was false and should be false")
-	assert.Nil(config.Struct.FloatP, from+"the float64 was missing and should be nil")
-	assert.EqualValues(0, config.Struct.Int, from+"int was not set and must be 0")
-	assert.Nil(config.Struct.StringP, from+"the string was missing and should be nil")
+	check.False(config.Struct.Bool, from+"the boolean was false and should be false")
+	check.Nil(config.Struct.FloatP, from+"the float64 was missing and should be nil")
+	check.EqualValues(0, config.Struct.Int, from+"int was not set and must be 0")
+	check.Nil(config.Struct.StringP, from+"the string was missing and should be nil")
 
 	// PointerStruct
-	assert.NotNil(config.PointerStruct, from+"the pointer struct has values and must not be nil")
-	assert.False(config.PointerStruct.Bool, from+"the boolean was missing and should be false")
-	assert.Nil(config.PointerStruct.FloatP, from+"the float64 was missing and should be nil")
-	assert.EqualValues(0, config.PointerStruct.Int, from+"int was not set and must be 0")
-	assert.EqualValues("foo2", *config.PointerStruct.StringP, from+"the string was set to foo2")
+	check.NotNil(config.PointerStruct, from+"the pointer struct has values and must not be nil")
+	check.False(config.PointerStruct.Bool, from+"the boolean was missing and should be false")
+	check.Nil(config.PointerStruct.FloatP, from+"the float64 was missing and should be nil")
+	check.EqualValues(0, config.PointerStruct.Int, from+"int was not set and must be 0")
+	check.Equal("foo2", *config.PointerStruct.StringP, from+"the string was set to foo2")
 
 	// PointerSlice2
-	assert.Empty(config.PointerSlice2, from+"pointerslice2 is too long")
+	check.Empty(config.PointerSlice2, from+"pointerslice2 is too long")
 	// StructSlice2
-	assert.Empty(config.StructSlice2, from+"structslice2 is too long")
+	check.Empty(config.StructSlice2, from+"structslice2 is too long")
 	// Struct2
-	assert.False(config.Struct2.Bool, from+"this must be zero value")
-	assert.Nil(config.Struct2.FloatP, from+"this must be zero value")
-	assert.EqualValues(0, config.Struct2.Int, from+"this must be zero value")
-	assert.Nil(config.Struct2.StringP, from+"this must be zero value")
+	check.False(config.Struct2.Bool, from+"this must be zero value")
+	check.Nil(config.Struct2.FloatP, from+"this must be zero value")
+	check.EqualValues(0, config.Struct2.Int, from+"this must be zero value")
+	check.Nil(config.Struct2.StringP, from+"this must be zero value")
 	// PointerStruct2
-	assert.Nil(config.PointerStruct2, from+"pointer struct 2 must be nil")
+	check.Nil(config.PointerStruct2, from+"pointer struct 2 must be nil")
 }
 
 func TestUnmarshalErrors(t *testing.T) {
@@ -175,14 +175,16 @@ func ExampleUnmarshal() {
 		panic(err)
 	}
 
-	path.Close()
+	if err = path.Close(); err != nil {
+		panic(err)
+	}
 
 	// Start with an empty config. Or set some defaults beforehand.
 	config := &Config{}
 
 	// Simply pass in your config file. If it contains ".yaml" it will be parsed as YAML.
 	// Same for ".xml" and ".json". If the file has none of these extensions it is parsed
-	// as TOML. Meaning if you name your config "config.conf" it needs ot be TOML formatted.
+	// as TOML. Meaning if you name your config "config.conf" it needs to be TOML formatted.
 	err = cnfgfile.Unmarshal(config, path.Name())
 	if err != nil {
 		panic(err)
