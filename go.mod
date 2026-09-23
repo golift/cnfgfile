@@ -1,14 +1,11 @@
 module golift.io/cnfgfile
 
-go 1.19
+go 1.25.0
 
 require (
-	github.com/BurntSushi/toml v1.4.0
-	github.com/stretchr/testify v1.9.0
+	github.com/BurntSushi/toml v1.6.0
+	github.com/stretchr/testify v1.12.1
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require (
-	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
-)
+require go.yaml.in/yaml/v3 v3.0.5 // indirect
